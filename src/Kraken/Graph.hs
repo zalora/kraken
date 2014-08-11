@@ -172,12 +172,7 @@ transitiveHull g =
         (i, v, reachableVerticesWithoutSelf g i)
 
 -- | Returns all the reachable vertices from one vertex without actually
--- including the node itself, if there are no edges coming back to itself.
---
--- >>> reachableVerticesWithoutSelf (Graph.fromList [(0, (), [])]) 0
--- []
--- >>> reachableVerticesWithoutSelf (Graph.fromList [(0, (), [0])]) 0
--- [0]
+-- including the node itself if the node is not part of a cycle.
 reachableVerticesWithoutSelf :: Ord i => Graph i v -> i -> [i]
 reachableVerticesWithoutSelf g i =
     nub $

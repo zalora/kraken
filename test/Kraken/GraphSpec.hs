@@ -85,6 +85,11 @@ main = hspec spec
 spec :: Spec
 spec = do
     describe "reachableVerticesWithoutSelf" $ do
+        it "bla" $ do
+            reachableVerticesWithoutSelf (Graph.fromList [(0, (), [])] :: Graph Int ()) 0
+                `shouldBe` []
+            reachableVerticesWithoutSelf (Graph.fromList [(0, (), [0])] :: Graph Int ()) 0
+                `shouldBe` [0]
         it "does not list the node itself by default" $
             -- using acyclic graphs because otherwise quickcheck gives up
             -- too early
