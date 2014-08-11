@@ -13,3 +13,5 @@ These interfaces allow you to
   - list all targets
   - output the dependency graph in dot format
   - run specific targets while doing dependency resolution
+
+See examples/example.hs for a simple introduction.
