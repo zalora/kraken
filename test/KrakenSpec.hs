@@ -187,6 +187,12 @@ spec = do
             output `shouldSatisfy` (not . (showFailure (Nothing, "foo") `isInfixOf`))
             output `shouldSatisfy` (not . (showFailure (Just "m1", "foo") `isInfixOf`))
 
+          it "does not run the target if the first run of the monitor throws an Exception (instead of abort)" $ do
+            mvar <- newMVar []
+            _ <- hSilence [stdout, stderr] $
+              withArgs (words "run t1") $ runWithExitCode (store mvar (error "m1 raises an Exception"))
+            readMVar mvar `shouldReturn` []
+
         it "doesn't execute monitors when called with --omit-monitors" $ do
           mvar <- newMVar []
           let run = withArgs ["run", "--omit-monitors", "t1"] (runAsMain (store mvar (append mvar "m1")))

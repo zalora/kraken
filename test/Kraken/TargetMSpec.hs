@@ -16,19 +16,11 @@ import           Test.QuickCheck.Classes
 import           Test.QuickCheck.Property (morallyDubiousIOProperty)
 
 import           Kraken.TargetM
+import           Kraken.Util
 
 
 spec :: Spec
 spec = do
-
-    describe "exception handling" $ do
-        it "converts exceptions to Lefts" $ do
-            runTargetM (error "foo" :: TargetM ()) `shouldReturn`
-                Left [(Nothing, "foo")]
-
-        it "prints exceptions to stderr" $ do
-            output <- hCapture_ [stderr] $ runTargetM (error "foo" :: TargetM ())
-            output `shouldContain` "foo"
 
     describe "abort" $ do
 
@@ -43,47 +35,58 @@ spec = do
             output <- capture_ $ runTargetM (abort "foo" >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` (not . ("bar" `isInfixOf`))
 
-    describe ">>!" $ do
+    describe "isolate" $ do
 
-        it "does execute actions after abort" $ do
-            output <- capture_ $ runTargetM (abort "foo" >>! liftIO (putStrLn "bar"))
+        it "does execute subsequent actions in case of aborts" $ do
+            output <- capture_ $ runTargetM (isolate (abort "foo") >> liftIO (putStrLn "bar"))
+            output `shouldSatisfy` ("bar" `isInfixOf`)
+
+        it "does execute subsequent actions in case of Exceptions" $ do
+            output <- capture_ $ runTargetM (isolate (error "foo") >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` ("bar" `isInfixOf`)
 
         it "does collect errors" $ do
-            result <- runTargetM (abort "foo" >>! abort "bar")
+            result <- runTargetM (isolate (abort "foo") >> (abort "bar" :: TargetM ()))
             result `shouldBe` Left [(Nothing, "foo"), (Nothing, "bar")]
 
-        it "also writes aborts to stderr at the time of execution" $ do
+        it "prints aborts to stderr" $ do
             output <- hCapture_ [stderr] $ runTargetM $
-                abort "foo" >>!
+                isolate (abort "foo") >>
                 liftIO (hPutStrLn stderr "bar")
             output `shouldBe` "<no target>:\n    foo\nbar\n"
 
-        testBatch $ monoid (error "proxy" :: WrappedTargetM)
+        it "prints exceptions to stderr" $ do
+            output <- hCapture_ [stderr] $ runTargetM (isolate (error "foo"))
+            output `shouldContain` "foo"
+
+        it "converts exceptions to Lefts" $ do
+            runTargetM (isolate (error "foo")) `shouldReturn`
+                Left [(Nothing, "foo")]
+
+        testBatch $ monoid (error "proxy" :: IsolatedTargetM)
 
 
 -- | Deeply embedded DSL for (a subset of) TargetM ().
-data WrappedTargetM
+data IsolatedTargetM
     = Abort String
     | ReturnUnit
     | LogMessageLn String
 
-    | WrappedTargetM :>>! WrappedTargetM
+    | IsolatedTargetM :>> IsolatedTargetM
   deriving Show
 
-unwrap :: WrappedTargetM -> TargetM ()
-unwrap x = do
-  case x of
+unwrap :: IsolatedTargetM -> TargetM ()
+unwrap x = isolate $ case x of
     Abort s -> abort s
     ReturnUnit -> return ()
     LogMessageLn s -> logMessageLn s
-    (a :>>! b) -> unwrap a >>! unwrap b
+    (a :>> b) -> unwrap a >> unwrap b
 
-instance Monoid WrappedTargetM where
+instance Monoid IsolatedTargetM where
     mempty = ReturnUnit
-    mappend = (:>>!)
+    mappend = (:>>)
 
-instance EqProp WrappedTargetM where
+instance EqProp IsolatedTargetM where
     a =-= b = morallyDubiousIOProperty $ do
       resultA <- hCapture [stdout, stderr] $ runTargetM $ unwrap a
       resultB <- hCapture [stdout, stderr] $ runTargetM $ unwrap b
@@ -91,17 +94,17 @@ instance EqProp WrappedTargetM where
           printTestCase (show resultA ++ "\n/=\n" ++ show resultB) $
           resultA == resultB
 
-instance Arbitrary WrappedTargetM where
+instance Arbitrary IsolatedTargetM where
     arbitrary = oneof $
         (Abort <$> arbitrary) :
         (return ReturnUnit) :
         (LogMessageLn <$> arbitrary) :
-        ((:>>!) <$> arbitrary <*> arbitrary) :
+        ((:>>) <$> arbitrary <*> arbitrary) :
         []
     shrink (Abort s) = map Abort $ shrink s
     shrink ReturnUnit = []
     shrink (LogMessageLn s) = map LogMessageLn $ shrink s
-    shrink (a :>>! b) =
-        [a' :>>! b | a' <- shrink a] ++
-        [a :>>! b' | b' <- shrink b] ++
+    shrink (a :>> b) =
+        [a' :>> b | a' <- shrink a] ++
+        [a :>> b' | b' <- shrink b] ++
         [a, b]

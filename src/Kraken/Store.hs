@@ -197,14 +197,15 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
         (fmap (("    " ++) . show) executionPlan)
     when (not dryRun) $ do
         doneTargets <- liftIO $ newMVar Set.empty
-        foldDependencies (combinator, return ()) store targets $ \ node -> do
+        foldDependencies ((>>), return ()) store targets $ \ node -> do
             done <- liftIO $ readMVar doneTargets
             let dependencies = lookupDependencies store (nodeName node)
             when (all (`Set.member` done) dependencies) $ do
-                runTargetWithMonitor store omitMonitors node
-                liftIO $ modifyMVar_ doneTargets (return . insert (nodeName node))
+                isolateM $ do
+                    runTargetWithMonitor store omitMonitors node
+                    liftIO $ modifyMVar_ doneTargets (return . insert (nodeName node))
   where
-    combinator = if failFast then (>>) else (>>!)
+    isolateM = if failFast then id else isolate
 
 -- | Runs a target including executing the included monitors appropriately,
 --   ignoring the included dependencies.
@@ -226,7 +227,7 @@ runTargetWithMonitor store False target@Node{nodeMonitor = Just (Monitor monitor
   withTargetName (nodeName target) $ do
     logMessageLn [i|running monitor for #{nodeName target}|]
     monitorTarget <- lookupTarget store monitor
-    monitorMessages <- runTargetMSilently $ runTarget monitorTarget
+    monitorMessages <- liftIO $ runTargetMSilently $ runTarget monitorTarget
     case monitorMessages of
         Right () -> do
             logMessageLn [i|monitor returned no messages, not running #{nodeName target}|]
