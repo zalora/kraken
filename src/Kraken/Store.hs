@@ -115,10 +115,12 @@ lookupTarget store targetName =
 
 -- | returns all targets to be executed for running a given target, i.e.
 -- including dependencies and the given target itself.
-lookupExecutionPlan :: Store -> Bool -> [TargetName] -> [TargetName]
-lookupExecutionPlan _ _dontChaseDependencies@True targets = targets
+lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM [Node]
+lookupExecutionPlan store _dontChaseDependencies@True targets =
+    mapM (lookupTarget store) targets
 lookupExecutionPlan store _dontChaseDependencies@False targets = do
-    foldDependencies ((++), []) store targets (\ node -> [nodeName node])
+    mapM_ (lookupTarget store) targets
+    return $ foldDependencies ((++), []) store targets (\ node -> [node])
 
 lookupDependencies :: Store -> TargetName -> [TargetName]
 lookupDependencies store target =
@@ -191,16 +193,16 @@ runStore store opts = case opts of
 -- | Will run all given targets, and collect their error messages.
 runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM ()
 runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
-    let executionPlan = lookupExecutionPlan store dontChaseDependencies targets
+    executionPlan <- lookupExecutionPlan store dontChaseDependencies targets
     logMessage . unlines $
         "execution plan:" :
-        (fmap (("    " ++) . show) executionPlan)
+        (fmap (("    " ++) . show . nodeName) executionPlan)
     when (not dryRun) $ do
         doneTargets <- liftIO $ newMVar Set.empty
-        foldDependencies ((>>), return ()) store targets $ \ node -> do
+        forM_ executionPlan $ \ node -> do
             done <- liftIO $ readMVar doneTargets
             let dependencies = lookupDependencies store (nodeName node)
-            when (all (`Set.member` done) dependencies) $ do
+            when (all (`Set.member` done) dependencies || dontChaseDependencies) $ do
                 isolateM $ do
                     runTargetWithMonitor store omitMonitors node
                     liftIO $ modifyMVar_ doneTargets (return . insert (nodeName node))

@@ -87,6 +87,11 @@ spec = do
           mvar :: MVar [String] <- newMVar []
           (hSilence [stderr] (run mvar) >> readMVar mvar) `shouldReturn` ["t1", "t2"]
 
+        it "doesn't run dependencies when given -x" $ do
+          mvar :: MVar [String] <- newMVar []
+          withArgs (words "run t2 -x") $ runAsMain $ store mvar
+          readMVar mvar `shouldReturn` ["t2"]
+
       context "when given multiple targets with dependencies" $ do
         let store = createStore $
               Target "A" ["C"] Nothing (logMessageLn "executing A") :
