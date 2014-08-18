@@ -45,6 +45,14 @@ spec = do
       edges (graph store) `shouldBe` [("t2", "t1")]
 
   describe "runAsMain" $ do
+    describe "check command" $ do
+      it "allows to perform static checks on the store" $ do
+        let run = withArgs ["check"] $
+              runWithExitCode $ createStore $
+                Target "t1" ["t2"] Nothing (return ()) :
+                []
+        run `shouldThrow` (\ (e :: ErrorCall) -> show e == "target dependencies cannot be found: t2")
+
     describe "run command" $ do
 
       it "fails when given a non-existing target" $ do

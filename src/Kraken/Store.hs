@@ -82,6 +82,9 @@ checkStore targets = do
     allDependencies = Set.fromList $ concat $
         fmap dependencies targets
 
+evalStore :: Store -> IO ()
+evalStore (Store _ _) = return ()
+
 
 data TargetList
     = AllTargets -- meaning all available targets
@@ -170,6 +173,10 @@ runStore store opts = case opts of
             targets <- lookupTargets store useAsPrefix targetList
             runTargets store dryRun dontChaseDependencies omitMonitors failFast targets
         either reportAndExit return result
+    Check _ -> do
+        -- Checks are already performed by 'createStore'.
+        evalStore store
+        logMessageLn "Store is consistent."
     List _ -> putStr $ unlines $
         fmap show $
         reverse $ topologicalSort $
@@ -264,6 +271,9 @@ data Options custom
         _omitMonitors :: Bool,
         _failFast :: Bool
       }
+    | Check {
+        customOptions :: custom
+      }
     | List {
         customOptions :: custom
       }
@@ -290,6 +300,8 @@ options description customParser =
                         omitMonitors <*>
                         failFast)
                   (progDesc "run creation and monitoring operations for the specified targets")) <>
+        command "check"
+            (info (Check <$> customParser) (progDesc "perform static checks on the target store")) <>
         command "list"
             (info (List <$> customParser) (progDesc "list all targets")) <>
         command "dot"
