@@ -99,10 +99,10 @@ lookupTargets store useAsPrefix (SelectedTargets names) =
     (forM names $ \ needle ->
      case filter (pred needle) (toList $ graph store) of
         [target] -> return [target]
-        [] -> abort [i|target not found: #{needle}|]
+        [] -> fail [i|target not found: #{needle}|]
         targets -> if useAsPrefix
             then return targets
-            else abort [i|multiple targets found for prefix #{needle}|])
+            else fail [i|multiple targets found for prefix #{needle}|])
   where
     -- whether to include a given Target
     pred :: TargetName -> Node -> Bool
@@ -114,7 +114,7 @@ lookupTarget :: Store -> TargetName -> TargetM Node
 lookupTarget store targetName =
     case filter (\ t -> nodeName t == targetName) (toList $ graph store) of
         [a] -> return a
-        _ -> abort [i|unable to look up target: #{targetName}|]
+        _ -> fail [i|unable to look up target: #{targetName}|]
 
 -- | returns all targets to be executed for running a given target, i.e.
 -- including dependencies and the given target itself.
@@ -184,13 +184,13 @@ runStore store opts = case opts of
     Dot _ withMonitors prefixes transitiveReduction ->
         putStr $ toDot withMonitors prefixes transitiveReduction $ originalTargets store
   where
-    reportAndExit :: [(Maybe TargetName, String)] -> IO ()
+    reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
         hPutStr stderr $ unlines $
             "" :
             "FAILURE" :
             "-------" :
-            (strip $ unlines $ map showFailure messages) :
+            (strip $ unlines $ map showError messages) :
             []
         exitWith (ExitFailure 70)
 
@@ -236,21 +236,11 @@ runTargetWithMonitor store False target@Node{nodeMonitor = Just (Monitor monitor
   withTargetName (nodeName target) $ do
     logMessageLn [i|running monitor for #{nodeName target}|]
     monitorTarget <- lookupTarget store monitor
-    monitorMessages <- liftIO $ runTargetMSilently $ runTarget monitorTarget
-    case monitorMessages of
-        Right () -> do
-            logMessageLn [i|monitor returned no messages, not running #{nodeName target}|]
-        Left messages -> do
-            logMessageLn "monitor returned messages:"
-            forM_ messages $ \ (mName, message) ->
-                logMessageLn $ case mName of
-                    Nothing -> message
-                    Just name -> show name ++ ": " ++ message
-            -- running the actual target (inside the TargetM monad)
-            runTarget target
-            -- running the monitor as confirmation (inside the TargetM monad)
-            runTarget monitorTarget
-            logMessageLn [i|monitor ran successfully: #{nodeName monitorTarget}|]
+
+    bracketWithMonitor
+        (withTargetName (nodeName monitorTarget) (nodeRun monitorTarget))
+        (runTarget target)
+
 
 -- | Runs the target ignoring dependencies and monitors.
 runTarget :: Node -> TargetM ()

@@ -1,29 +1,33 @@
 {-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses #-}
+             MultiParamTypeClasses, ScopedTypeVariables #-}
 
 module Kraken.TargetM (
     TargetName(..),
-    showFailure,
+    showError,
 
+    Error(..),
     TargetM,
     runTargetM,
-    runTargetMSilently,
-    withTargetName,
-    isolate,
-    abort,
 
+    withTargetName,
+
+    isolate,
     catch,
+    mapExceptions,
+
+    outOfDate,
+    bracketWithMonitor,
   ) where
 
 
 import           Control.Applicative
-import           Control.Arrow              (first)
 import qualified Control.Exception          as E
 import           Control.Exception.Enclosed
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
+import           Control.Monad.State        (StateT, get, put, runStateT)
 import           Control.Monad.Trans.Either
-import           Control.Monad.Writer
+import           Data.Monoid
 import           Data.String
 
 import           Kraken.Util
@@ -35,72 +39,118 @@ newtype TargetName = TargetName String
 instance Show TargetName where
     show (TargetName n) = n
 
-showFailure :: (Maybe TargetName, String) -> String
-showFailure (mTarget, message) = unlines $
+
+data Error = Error {
+    errorTarget :: Maybe TargetName,
+    errorMessage :: String
+  }
+    deriving (Eq, Ord, Show)
+
+showError :: Error -> String
+showError (Error mTarget message) = unlines $
     ((maybe "<no target>" show mTarget) ++ ":") :
     (fmap ("    " ++) (lines message))
 
 
-type Errors = [(Maybe TargetName, String)]
+data ShortCut
+  = ErrorShortCut Error
+  | OutDated Error
+
+type State = [Error]
+
 
 -- | Our monad to run and monitor targets.
-newtype TargetM a = TargetM (EitherT Errors (WriterT Errors (ReaderT (Maybe TargetName, Bool) IO)) a)
-    deriving (Functor, Applicative, Monad, MonadIO)
+newtype TargetM a = TargetM (EitherT ShortCut (StateT State (ReaderT (Maybe TargetName) IO)) a)
+  deriving (Functor, Applicative, MonadIO)
 
-runTargetM :: TargetM a -> IO (Either [(Maybe TargetName, String)] a)
-runTargetM action = runTargetMInternal True action
+instance Monad TargetM where
+    TargetM a >>= f = TargetM $ do
+        x <- a
+        let (TargetM b) = f x
+        b
+    return = TargetM . return
+    fail msg = TargetM $ do
+        target <- ask
+        let error = Error target msg
+        logMessage $ showError error
+        left $ ErrorShortCut error
 
--- runs the given action silently, i.e.
--- - without outputting stuff to stderr and
--- - without using the monads failure mechanism, errors are returned as Lefts.
-runTargetMSilently :: TargetM a -> IO (Either Errors a)
-runTargetMSilently action =
-    runTargetMInternal False action
+unwrap :: State -> Maybe TargetName -> TargetM a -> IO (Either ShortCut a, State)
+unwrap state currentTarget (TargetM action) =
+    runReaderT (runStateT (runEitherT action) state) currentTarget
 
-runTargetMInternal :: Bool -> TargetM a -> IO (Either Errors a)
-runTargetMInternal printToStderr (TargetM action) = do
-    result <- (runReaderT (runWriterT (runEitherT action))) (Nothing, printToStderr)
-    return $ case result of
-        (Right a, []) -> Right a
-        (Right _, collectedErrors) -> Left $ collectedErrors
-        (Left errors, collectedErrors) -> Left (collectedErrors ++ errors)
 
-targetM :: IO (Either [(Maybe TargetName, String)] a) -> TargetM a
-targetM action = do
-    result <- liftIO $ action
-    case result of
-        Left messages -> TargetM $ left messages
-        Right x -> return x
+runTargetM :: TargetM a -> IO (Either [Error] a)
+runTargetM action = do
+    (result, state) <- unwrap [] Nothing action
+    return $ case (result, state) of
+        (Right x, []) -> Right x
+        (Right _, errors) -> Left errors
+        (Left (ErrorShortCut error), errors) -> Left (errors ++ [error])
+        (Left (OutDated error), errors) ->
+            -- OutDated treated like an error, because it's not being executed
+            -- inside bracketWithMonitor.
+            Left (errors ++ [error])
 
 -- | Sets the TargetName that will be included in the error messages that
--- can are raised by 'abort'.
+-- can are raised by 'fail' and 'outOfDate'.
 withTargetName :: TargetName -> TargetM a -> TargetM a
 withTargetName name (TargetM action) =
-    TargetM $ local (first $ const $ Just name) action
+    TargetM $ local (const $ Just name) action
+
 
 -- | Runs the given action and always succeeds. Both Lefts and Exceptions are
 -- being written to the error state.
 isolate :: TargetM () -> TargetM ()
 isolate action = do
-    (_, printToStderr) <- TargetM $ ask
+    currentTarget <- TargetM ask
     result <- liftIO $ catchAny
-        (runTargetMInternal printToStderr action)
+        (runTargetM ((maybe id withTargetName currentTarget) action))
         (\ e -> do
-            logMessage $ showFailure (Nothing, show e)
-            return $ Left [(Nothing, show e)])
+            let error = Error currentTarget (show e)
+            logMessage $ showError error
+            return $ Left [error])
     case result of
-        Left errors -> TargetM $ tell errors
         Right () -> return ()
+        Left errs -> TargetM $ do
+            state <- get
+            put (state ++ errs)
+            return ()
 
-abort :: String -> TargetM a
-abort message = TargetM $ do
-    (mTarget, printToStderr) <- ask
-    let failure = (mTarget, message)
-    when printToStderr $
-        logMessage (showFailure failure)
-    left [failure]
+mapExceptions :: (E.Exception a, E.Exception b) => (a -> b) -> TargetM o -> TargetM o
+mapExceptions f action = catch action (liftIO . E.throwIO . f)
 
 catch :: E.Exception e => TargetM a -> (e -> TargetM a) -> TargetM a
-catch action handler =
-    targetM $ liftIO $ E.catch (runTargetM action) $ \ e ->
-        liftIO $ runTargetM $ handler e
+catch action handler = TargetM $ do
+    state <- get
+    currentTarget <- ask
+    (result, nextState) <- liftIO $ E.catch
+        (unwrap state currentTarget action)
+        (unwrap state currentTarget . handler)
+    put nextState
+    case result of
+        Right a -> return a
+        Left e -> left e
+
+
+outOfDate :: String -> TargetM a
+outOfDate msg = TargetM $ do
+    currentTarget <- ask
+    let error = Error currentTarget ("message from monitor: " ++ msg)
+    logMessage $ showError error
+    left $ OutDated error
+
+bracketWithMonitor :: TargetM () -> TargetM () -> TargetM ()
+bracketWithMonitor (TargetM monitor) (TargetM action) = TargetM $ do
+    currentState <- get
+    currentTarget <- ask
+    -- running the monitor
+    (result, nextState) <- liftIO $ unwrap currentState currentTarget (TargetM monitor)
+    put nextState
+    case result of
+        (Left (OutDated _)) -> do
+            action
+            monitor
+        (Left (ErrorShortCut error)) ->
+            left $ ErrorShortCut error
+        (Right ()) -> return ()
