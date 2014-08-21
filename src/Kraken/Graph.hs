@@ -1,6 +1,10 @@
-{-# LANGUAGE QuasiQuotes, ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor, GADTs, QuasiQuotes, ViewPatterns #-}
 
 module Kraken.Graph (
+    TargetP(..),
+    Monitor(..),
+    monitorName,
+    Target,
     Node,
     toNode,
     toGraph,
@@ -23,11 +27,35 @@ import           Data.Maybe
 import           Data.String.Interpolate
 import           Safe
 
-import           Kraken.Target
 import           Kraken.TargetM
 
 
--- | Node type for the target graph.
+-- | Type representing targets.
+data TargetP dependencies = Target {
+    name :: TargetName,
+    dependencies :: dependencies,
+    monitor :: Maybe (Monitor dependencies),
+    run :: TargetM () ()
+  }
+    deriving (Functor)
+
+data Monitor dependencies where
+    Monitor :: TargetName ->
+               dependencies ->
+               (Maybe monitorInput -> TargetM monitorInput ()) ->
+               Monitor dependencies
+
+instance Functor Monitor where
+    fmap f (Monitor name deps action) = Monitor name (f deps) action
+
+monitorName :: Monitor dependencies -> TargetName
+monitorName (Monitor name _ _) = name
+
+
+-- | Target type that still contains its dependencies.
+type Target = TargetP [TargetName]
+
+-- | Node type for the target graph, stripped of dependencies.
 -- We don't want to store target dependencies redundantly, so this is
 -- a stripped down version of Kraken.Target.Target.
 -- Also the monitors are being inserted into the Node graph as targets,

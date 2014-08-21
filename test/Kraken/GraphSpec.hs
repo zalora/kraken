@@ -15,7 +15,6 @@ import           Test.Hspec
 import           Test.QuickCheck
 
 import           Kraken.Graph
-import           Kraken.Target
 
 
 instance Arbitrary (Graph Int ()) where

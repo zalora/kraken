@@ -29,7 +29,6 @@ import           System.Exit
 import           System.IO
 
 import           Kraken.Graph
-import           Kraken.Target
 import           Kraken.TargetM
 import           Kraken.Util
 
