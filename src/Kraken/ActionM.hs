@@ -18,6 +18,7 @@ module Kraken.ActionM (
     catch,
     mapExceptions,
 
+    triggerTarget,
     outOfDate,
     discardMonitorInput,
     bracketWithMonitor,
@@ -59,7 +60,7 @@ showError (Error mTarget message) = unlines $
 
 data ShortCut monitorInput
   = ErrorShortCut Error
-  | OutDated Error monitorInput
+  | OutDated Error (Maybe monitorInput)
     deriving (Functor)
 
 type State = [Error]
@@ -158,8 +159,19 @@ catch action handler = ActionM $ do
         Left e -> left e
 
 
+-- | Like outOfDate, but does not give a memoized monitor input value.
+triggerTarget :: String -> MonitorM monitorInput a
+triggerTarget msg = triggerTargetInternal msg Nothing
+
+-- | Says that the target is out of date. Triggers that the target
+-- will be run. A monitorInput (e.g. a timestamp that says when the
+-- input was created) has to be provided that can/should be used in
+-- the closing monitor (see also memoizeMonitorInput).
 outOfDate :: String -> monitorInput -> MonitorM monitorInput a
-outOfDate msg monitorInput = ActionM $ do
+outOfDate msg monitorInput = triggerTargetInternal msg (Just monitorInput)
+
+triggerTargetInternal :: String -> Maybe monitorInput -> MonitorM monitorInput a
+triggerTargetInternal msg monitorInput = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget ("message from monitor: " ++ msg)
     logMessage $ showError error
@@ -181,7 +193,7 @@ bracketWithMonitor monitor (ActionM action) = ActionM $ do
     case result of
         (Left (OutDated _ monitorInput)) -> do
             action
-            getActionM $ discardMonitorInput (monitor (Just monitorInput))
+            getActionM $ discardMonitorInput (monitor monitorInput)
         (Left (ErrorShortCut error)) ->
             left $ ErrorShortCut error
         (Right ()) -> return ()

@@ -82,11 +82,11 @@ spec = do
 
         testBatch $ monoid (error "proxy" :: IsolatedTargetM)
 
-    describe "outOfDate" $ do
+    describe "triggerTarget" $ do
         it "equals '(cancel . (\"message from monitor: \" ++))' when used \
            \outside 'bracketWithMonitor'" $ do
             let msg = "foo"
-            a <- runActionM (outOfDate msg () :: TargetM ())
+            a <- runActionM (triggerTarget msg :: TargetM ())
             b <- runActionM ((cancel . ("message from monitor: " ++)) msg)
             a `shouldBe` b
 
@@ -98,37 +98,37 @@ spec = do
                 (liftIO $ putStrLn "foo")
             output `shouldSatisfy` (not . ("foo" `isInfixOf`))
 
-        it "runs the bracketed action when the opening monitor uses outOfDate" $ do
+        it "runs the bracketed action when the opening monitor uses triggerTarget" $ do
             output <- capture_ $ runActionM $ bracketWithMonitor
-                (\ _ -> outOfDate "foo" ())
+                (\ _ -> triggerTarget "foo")
                 (liftIO $ putStrLn "bar")
             output `shouldContain` "bar"
 
-        it "outputs the outOfDate message from the opening monitor to stderr" $ do
+        it "outputs the triggerTarget message from the opening monitor to stderr" $ do
             output <- hCapture_ [stderr] $ runActionM $ bracketWithMonitor
-                (\ _ -> outOfDate "foo" ())
+                (\ _ -> triggerTarget "foo")
                 (return ())
             output `shouldContain` "foo"
 
-        it "doesn't include the outOfDate message from the opening monitor in \
+        it "doesn't include the triggerTarget message from the opening monitor in \
            \the summary" $ do
-            monitor <- mockStateful (const (outOfDate "foo" ()) : const (return ()) : [])
+            monitor <- mockStateful (const (triggerTarget "foo") : const (return ()) : [])
             result <- runActionM $ bracketWithMonitor
                 monitor
                 (return ())
             result `shouldBe` Right ()
 
-        it "fails when the closing monitor uses outOfDate" $ do
+        it "fails when the closing monitor uses triggerTarget" $ do
             monitor <- mockStateful $
-                const (outOfDate "foo" ()) :
-                const (outOfDate "bar" ()) :
+                const (triggerTarget "foo") :
+                const (triggerTarget "bar") :
                 []
             result <- runActionM $ bracketWithMonitor monitor (return ())
             result `shouldBe` Left [Error Nothing "message from monitor: bar"]
 
         it "succeeds when the closing monitor succeeds" $ do
             monitor <- mockStateful $
-                const (outOfDate "foo" ()) :
+                const (triggerTarget "foo") :
                 const (return ()) :
                 []
             result <- runActionM $ bracketWithMonitor
@@ -175,6 +175,7 @@ data IsolatedTargetM
     = Cancel String
     | ReturnUnit
     | LogMessageLn String
+    | TriggerTarget String
     | OutOfDate String Int
 
     | IsolatedTargetM :>> IsolatedTargetM
@@ -185,6 +186,7 @@ unwrap x = isolate $ case x of
     Cancel s -> cancel s
     ReturnUnit -> return ()
     LogMessageLn s -> logMessageLn s
+    TriggerTarget s -> triggerTarget s
     OutOfDate s n -> outOfDate s n
     (a :>> b) -> unwrap a >> unwrap b
 
@@ -205,12 +207,15 @@ instance Arbitrary IsolatedTargetM where
         (Cancel <$> arbitrary) :
         (return ReturnUnit) :
         (LogMessageLn <$> arbitrary) :
+        (TriggerTarget <$> arbitrary) :
         (OutOfDate <$> arbitrary <*> arbitrary) :
         ((:>>) <$> arbitrary <*> arbitrary) :
         []
     shrink (Cancel s) = map Cancel $ shrink s
     shrink ReturnUnit = []
     shrink (LogMessageLn s) = map LogMessageLn $ shrink s
+    shrink (TriggerTarget s) =
+        [TriggerTarget s' | s' <- shrink s]
     shrink (OutOfDate s n) =
         [OutOfDate s' n | s' <- shrink s] ++
         [OutOfDate s n' | n' <- shrink n]

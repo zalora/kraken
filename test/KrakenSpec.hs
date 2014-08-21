@@ -178,20 +178,20 @@ spec = do
           it "re-runs the monitor after running the target" $ do
             mvar <- newMVar []
             let run = withArgs (words "run t1")
-                  (runWithExitCode (store mvar (append mvar "m1" >> outOfDate "m1 complains" ())))
+                  (runWithExitCode (store mvar (append mvar "m1" >> triggerTarget "m1 complains")))
             exitCode <- hSilence [stderr] run
             exitCode `shouldSatisfy` (/= ExitSuccess)
             readMVar mvar `shouldReturn` ["m1", "t1", "m1"]
 
           it "raises an error when the second run of the monitor complains" $ do
             mvar <- newMVar []
-            let run = withArgs ["run", "t1"] (runWithExitCode (store mvar (outOfDate "m1 complains" ())))
+            let run = withArgs ["run", "t1"] (runWithExitCode (store mvar (triggerTarget "m1 complains")))
             hSilence [stderr] run `shouldReturn` ExitFailure 70
 
           it "runs successfully if the monitor does not complain the second time" $ do
             mvar <- newMVar []
             monitor <- stateDummy $
-              (append mvar "m1.1" >> outOfDate "m1 complains" ()) :
+              (append mvar "m1.1" >> triggerTarget "m1 complains") :
               append mvar "m1.2" :
               []
             let run = withArgs (words "run t1") $ runAsMain $ store mvar monitor
@@ -201,7 +201,7 @@ spec = do
           it "does not output the error message of the first monitor run like a normal error message" $ do
             mvar <- newMVar []
             monitor <- stateDummy $
-              (outOfDate "foo" ()) :
+              (triggerTarget "foo") :
               (return ()) :
               []
             output <- hCapture_ [stderr] $ withArgs (words "run t1") $ runAsMain $ store mvar monitor
