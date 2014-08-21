@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor, GADTs, QuasiQuotes #-}
 
 module Kraken.Graph (
-    TargetP(..),
+    TargetPoly(..),
     Monitor(..),
     monitorName,
     Target,
@@ -24,7 +24,7 @@ import           Kraken.Util
 
 
 -- | Type representing targets.
-data TargetP dependencies = Target {
+data TargetPoly dependencies = Target {
     name :: TargetName,
     dependencies :: dependencies,
     action :: TargetM () (),
@@ -45,18 +45,20 @@ monitorName :: Monitor dependencies -> TargetName
 monitorName (Monitor name _ _) = name
 
 
--- | Target type that still contains its dependencies.
-type Target = TargetP [TargetName]
+-- | Target type that still contains its dependencies. Users of kraken use this
+-- type to specify their targets.
+type Target = TargetPoly [TargetName]
 
 -- | Node type for the target graph, stripped of dependencies.
 -- We don't want to store target dependencies redundantly, so this is
 -- a stripped down version of Kraken.Target.Target.
 -- Also the monitors are being inserted into the Node graph as targets,
 -- additionally to being stored as monitors for other targets.
-type Node = TargetP ()
+type Node = TargetPoly ()
 
 toNode :: Target -> Node
 toNode = fmap (const ())
+
 
 toGraph :: [Target] -> Either String (Graph TargetName Node)
 toGraph targets = do

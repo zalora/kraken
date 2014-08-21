@@ -24,7 +24,7 @@ import           Data.Set                as Set (Set, empty, fromList, insert,
                                                  member, null, (\\))
 import           Data.String.Interpolate
 import           Data.Traversable        (forM)
-import           Options.Applicative hiding (action)
+import           Options.Applicative     hiding (action)
 import           System.Exit
 import           System.IO
 

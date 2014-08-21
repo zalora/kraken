@@ -3,7 +3,7 @@ module Kraken (
     module Kraken.TargetM,
     module Kraken.Store,
 
-    TargetP(..),
+    TargetPoly(..),
     Monitor(..),
     monitorName,
 
