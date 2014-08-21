@@ -27,7 +27,7 @@ import           Kraken.Util
 data TargetP dependencies = Target {
     name :: TargetName,
     dependencies :: dependencies,
-    run :: TargetM () (),
+    action :: TargetM () (),
     monitor :: Maybe (Monitor dependencies)
   }
     deriving (Functor)

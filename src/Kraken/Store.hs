@@ -24,7 +24,7 @@ import           Data.Set                as Set (Set, empty, fromList, insert,
                                                  member, null, (\\))
 import           Data.String.Interpolate
 import           Data.Traversable        (forM)
-import           Options.Applicative
+import           Options.Applicative hiding (action)
 import           System.Exit
 import           System.IO
 
@@ -246,7 +246,7 @@ runTargetWithMonitor False target@Target{monitor = Just (Monitor monitorName () 
 runTarget :: Node -> TargetM () ()
 runTarget target = withTargetName (name target) $ do
     logMessageLn [i|running target #{name target}|]
-    run target
+    action target
 
 
 -- * cli options
