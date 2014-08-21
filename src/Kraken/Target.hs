@@ -1,31 +1,40 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
+{-# LANGUAGE DeriveFunctor, GADTs, GeneralizedNewtypeDeriving, OverloadedStrings
+             #-}
 
 -- | Implements a simple target.
 
 module Kraken.Target (
-    Target(..),
+    TargetP(..),
+    Target,
     TargetName(..),
     TargetM,
     Monitor(..),
-    fromMonitor,
+    monitorName,
   ) where
 
 
-import Data.String
+import           Kraken.TargetM
 
-import Kraken.TargetM
-
-
-newtype Monitor = Monitor TargetName
-  deriving (Eq, Ord, Show, IsString)
-
-fromMonitor :: Monitor -> TargetName
-fromMonitor (Monitor n) = n
 
 -- | Type representing targets.
-data Target = Target {
+data TargetP dependencies = Target {
     name :: TargetName,
-    dependencies :: [TargetName],
-    monitor :: Maybe Monitor,
-    run :: TargetM ()
+    dependencies :: dependencies,
+    monitor :: Maybe (Monitor dependencies),
+    run :: TargetM () ()
   }
+    deriving (Functor)
+
+type Target = TargetP [TargetName]
+
+data Monitor dependencies where
+    Monitor :: TargetName ->
+               dependencies ->
+               (Maybe monitorInput -> TargetM monitorInput ()) ->
+               Monitor dependencies
+
+instance Functor Monitor where
+    fmap f (Monitor name deps action) = Monitor name (f deps) action
+
+monitorName :: Monitor dependencies -> TargetName
+monitorName (Monitor name _ _) = name

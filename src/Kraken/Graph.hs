@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes, ViewPatterns #-}
 
 module Kraken.Graph (
-    Node(..),
+    Node,
     toNode,
     toGraph,
     toDot,
@@ -19,42 +19,43 @@ import           Data.Foldable           as Foldable (toList)
 import           Data.Function
 import           Data.Graph.Wrapper      as Graph
 import           Data.List               as List
-import           Data.Map                as Map
 import           Data.Maybe
 import           Data.String.Interpolate
 import           Safe
 
 import           Kraken.Target
+import           Kraken.TargetM
 
 
 -- | Node type for the target graph.
 -- We don't want to store target dependencies redundantly, so this is
 -- a stripped down version of Kraken.Target.Target.
-data Node = Node {
-    nodeName :: TargetName,
-    nodeMonitor :: Maybe Monitor,
-    nodeRun :: TargetM ()
-  }
+-- Also the monitors are being inserted into the Node graph as targets,
+-- additionally to being stored as monitors for other targets.
+type Node = TargetP ()
 
 toNode :: Target -> Node
-toNode t = Node (name t) (monitor t) (run t)
+toNode = fmap (const ())
 
 toGraph :: [Target] -> Either String (Graph TargetName Node)
 toGraph targets = do
-    let targetMap :: Map TargetName Target
-        targetMap = Map.fromList $
-            fmap (\ target -> (name target, target)) targets
-        monitorDependencies :: Maybe Monitor -> [TargetName]
+    let monitorDependencies :: Maybe (Monitor [TargetName]) -> [TargetName]
         monitorDependencies Nothing = []
-        monitorDependencies (Just (Monitor monitor)) =
-            dependencies (targetMap ! monitor)
+        monitorDependencies (Just (Monitor _ dependencies _)) =
+            dependencies
         graph :: Graph TargetName Node
-        graph = Graph.fromList $ for targets $ \ target ->
-            (name target, toNode target,
-                nub (dependencies target ++ monitorDependencies (monitor target)))
+        graph = Graph.fromList $ concat $ for targets $ \ target ->
+            ((name target, toNode target,
+                nub (dependencies target ++ monitorDependencies (monitor target))) :
+             maybeToList (fmap monitorToNode $ monitor target))
     checkAcyclic graph
     return graph
   where
+    -- | to be able to use the monitor as a normal target
+    monitorToNode :: Monitor [TargetName] -> (TargetName, Node, [TargetName])
+    monitorToNode (Monitor name deps action) =
+        (name, Target name () Nothing (discardMonitorInput $ action Nothing), deps)
+
     checkAcyclic g = case cycles g of
         [] -> Right ()
         is -> Left $ unlines $
@@ -86,8 +87,8 @@ filterByPrefix (Just (mapPrefixes -> prefixes)) =
     fmap (\ (Target name deps monitor action) ->
         Target (dropPrefix name)
             (fmap dropPrefix $ List.filter hasPrefix deps)
-            (maybe Nothing (\ (Monitor monitor) ->
-                if hasPrefix monitor then Just (Monitor $ dropPrefix monitor) else Nothing) monitor)
+            (maybe Nothing (\ (Monitor name deps action) ->
+                if hasPrefix name then Just (Monitor (dropPrefix name) deps action) else Nothing) monitor)
             action)
   where
     hasPrefix :: TargetName -> Bool
@@ -122,25 +123,25 @@ targetsToEdges withMonitors graph =
         List.filter (\ t -> not (t `elem` monitors)) $
         reverse $ topologicalSort graph
     monitors :: [TargetName]
-    monitors = fmap fromMonitor $ catMaybes $ fmap nodeMonitor $ Foldable.toList graph
+    monitors = fmap monitorName $ catMaybes $ fmap monitor $ Foldable.toList graph
 
 targetEdges :: Bool -> Graph TargetName Node -> Node -> [String]
 targetEdges withMonitors graph node =
-    [i|"#{nodeName node}" [shape = #{nodeShape}];|] :
+    [i|"#{name node}" [shape = #{nodeShape}];|] :
     (fmap (mkEdge "black" node) dependencies) ++
     if withMonitors then
-        maybe [] (\ (Monitor monitor) ->
-            [i|"#{monitor}" [color = "blue"];|] :
-            (mkEdge "blue" node monitor ++ " // monitor_edge") : [])
-            (nodeMonitor node)
+        maybe [] (\ (Monitor name _ _) ->
+            [i|"#{name}" [color = "blue"];|] :
+            (mkEdge "blue" node name ++ " // monitor_edge") : [])
+            (monitor node)
       else []
   where
-    nodeShape = maybe "oval" (const "box") (nodeMonitor node)
-    dependencies = successors graph (nodeName node)
+    nodeShape = maybe "oval" (const "box") (monitor node)
+    dependencies = successors graph (name node)
 
 mkEdge :: String -> Node -> TargetName -> String
 mkEdge color a b =
-    [i|"#{nodeName a}" -> "#{b}" [color = "#{color}"];|]
+    [i|"#{name a}" -> "#{b}" [color = "#{color}"];|]
 
 
 -- * graph helpers

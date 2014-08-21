@@ -15,11 +15,13 @@ import           Control.Monad.IO.Class
 import           Data.Foldable           (toList)
 import           Data.Foldable           (forM_)
 import           Data.Graph.Wrapper      as Graph hiding (toList)
-import           Data.List               (foldl', group, isPrefixOf, nub, sort)
+import           Data.List               as List (foldl', group, isPrefixOf,
+                                                  nub, null, sort)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                as Set (Set, empty, fromList, insert,
-                                                 isSubsetOf, member, (\\))
+                                                 intersection, isSubsetOf,
+                                                 member, null, (\\))
 import           Data.String.Interpolate
 import           Data.Traversable        (forM)
 import           Options.Applicative
@@ -56,11 +58,10 @@ checkStore targets = do
     return $ Store graph targets
   where
     checkMonitors targetNames =
-        if monitors `isSubsetOf` targetNames then
-            Right ()
-        else
-            Left ("monitors cannot be found: " ++
-                (unwords $ sort $ fmap show $ toList (monitors \\ targetNames)))
+        if Set.null (intersection monitors targetNames)
+            then Right()
+            else Left ("Please, specify monitors only once inside the target:: " ++
+                (unwords $ sort $ fmap show $ toList (intersection monitors targetNames)))
     checkDependencies targetNames =
         if allDependencies `isSubsetOf` targetNames then
             Right ()
@@ -76,7 +77,7 @@ checkStore targets = do
 
     monitors :: Set TargetName
     monitors = Set.fromList $
-        fmap fromMonitor $ catMaybes $
+        fmap monitorName $ catMaybes $
         fmap monitor targets
     allDependencies :: Set TargetName
     allDependencies = Set.fromList $ concat $
@@ -91,34 +92,34 @@ data TargetList
     | SelectedTargets [TargetName]
   deriving (Show)
 
-lookupTargets :: Store -> Bool -> TargetList -> TargetM [TargetName]
-lookupTargets store _ AllTargets = return $ map nodeName $ toList $ graph store
+lookupTargets :: Store -> Bool -> TargetList -> TargetM () [TargetName]
+lookupTargets store _ AllTargets = return $ map name $ toList $ graph store
 lookupTargets store useAsPrefix (SelectedTargets names) =
-    map nodeName <$>
+    map name <$>
     concat <$>
     (forM names $ \ needle ->
      case filter (pred needle) (toList $ graph store) of
         [target] -> return [target]
-        [] -> fail [i|target not found: #{needle}|]
+        [] -> cancel [i|target not found: #{needle}|]
         targets -> if useAsPrefix
             then return targets
-            else fail [i|multiple targets found for prefix #{needle}|])
+            else cancel [i|multiple targets found for prefix #{needle}|])
   where
     -- whether to include a given Target
     pred :: TargetName -> Node -> Bool
     pred needle t = if useAsPrefix
-        then show needle `isPrefixOf` show (nodeName t)
-        else nodeName t == needle
+        then show needle `isPrefixOf` show (name t)
+        else name t == needle
 
-lookupTarget :: Store -> TargetName -> TargetM Node
+lookupTarget :: Store -> TargetName -> TargetM () Node
 lookupTarget store targetName =
-    case filter (\ t -> nodeName t == targetName) (toList $ graph store) of
+    case filter (\ t -> name t == targetName) (toList $ graph store) of
         [a] -> return a
-        _ -> fail [i|unable to look up target: #{targetName}|]
+        _ -> cancel [i|unable to look up target: #{targetName}|]
 
 -- | returns all targets to be executed for running a given target, i.e.
 -- including dependencies and the given target itself.
-lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM [Node]
+lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM () [Node]
 lookupExecutionPlan store _dontChaseDependencies@True targets =
     mapM (lookupTarget store) targets
 lookupExecutionPlan store _dontChaseDependencies@False targets = do
@@ -128,7 +129,7 @@ lookupExecutionPlan store _dontChaseDependencies@False targets = do
 lookupDependencies :: Store -> TargetName -> [TargetName]
 lookupDependencies store target =
     filter (/= target) $
-    foldDependencies ((++), []) store [target] (\ node -> [nodeName node])
+    foldDependencies ((++), []) store [target] (\ node -> [name node])
 
 -- The first argument is morally a Monoid instance constraint. But for some of the
 -- contexts this is used in, there would be multiple possible Monoid instances
@@ -137,7 +138,7 @@ lookupDependencies store target =
 foldDependencies :: (a -> a -> a, a) -> Store -> [TargetName] -> (Node -> a) -> a
 foldDependencies monoid@(_, mempty) store targets f =
   foldTopologically monoid store $ \ node ->
-    if nodeName node `Set.member` reachable
+    if name node `Set.member` reachable
       then f node
       else mempty
  where
@@ -198,21 +199,21 @@ runStore store opts = case opts of
 -- * running
 
 -- | Will run all given targets, and collect their error messages.
-runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM ()
+runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM () ()
 runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
     executionPlan <- lookupExecutionPlan store dontChaseDependencies targets
     logMessage . unlines $
         "execution plan:" :
-        (fmap (("    " ++) . show . nodeName) executionPlan)
+        (fmap (("    " ++) . show . name) executionPlan)
     when (not dryRun) $ do
         doneTargets <- liftIO $ newMVar Set.empty
         forM_ executionPlan $ \ node -> do
             done <- liftIO $ readMVar doneTargets
-            let dependencies = lookupDependencies store (nodeName node)
+            let dependencies = lookupDependencies store (name node)
             when (all (`Set.member` done) dependencies || dontChaseDependencies) $ do
                 isolateM $ do
-                    runTargetWithMonitor store omitMonitors node
-                    liftIO $ modifyMVar_ doneTargets (return . insert (nodeName node))
+                    runTargetWithMonitor omitMonitors node
+                    liftIO $ modifyMVar_ doneTargets (return . insert (name node))
   where
     isolateM = if failFast then id else isolate
 
@@ -227,26 +228,25 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
 --    them.
 -- 3. Run the monitor again. If any errors occur, stop and report them. If no
 --    errors occur than the target was created successfully.
-runTargetWithMonitor :: Store -> Bool -> Node -> TargetM ()
-runTargetWithMonitor _ _omitMonitors target@Node{nodeMonitor = Nothing} =
+runTargetWithMonitor :: Bool -> Node -> TargetM () ()
+runTargetWithMonitor _omitMonitors target@Target{monitor = Nothing} =
     runTarget target
-runTargetWithMonitor _ True target =
+runTargetWithMonitor True target =
     runTarget target
-runTargetWithMonitor store False target@Node{nodeMonitor = Just (Monitor monitor)} =
-  withTargetName (nodeName target) $ do
-    logMessageLn [i|running monitor for #{nodeName target}|]
-    monitorTarget <- lookupTarget store monitor
+runTargetWithMonitor False target@Target{monitor = Just (Monitor monitorName () monitorAction)} =
+  withTargetName (name target) $ do
+    logMessageLn [i|running monitor for #{name target}|]
 
     bracketWithMonitor
-        (withTargetName (nodeName monitorTarget) (nodeRun monitorTarget))
+        (\ monitorInput -> withTargetName monitorName (monitorAction monitorInput))
         (runTarget target)
 
 
 -- | Runs the target ignoring dependencies and monitors.
-runTarget :: Node -> TargetM ()
-runTarget target = withTargetName (nodeName target) $ do
-    logMessageLn [i|running target #{nodeName target}|]
-    nodeRun target
+runTarget :: Node -> TargetM () ()
+runTarget target = withTargetName (name target) $ do
+    logMessageLn [i|running target #{name target}|]
+    run target
 
 
 -- * cli options
@@ -347,7 +347,7 @@ options description customParser =
         help "include monitors in output")
 
     prefixes :: Parser (Maybe [String])
-    prefixes = (\ ps -> if null ps then Nothing else Just ps) <$> many (strOption (
+    prefixes = (\ ps -> if List.null ps then Nothing else Just ps) <$> many (strOption (
         long "prefix" <>
         short 'p' <>
         help "only include targets with the given prefix (and strip the prefix)"))

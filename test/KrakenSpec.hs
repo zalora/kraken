@@ -61,8 +61,16 @@ spec = do
         exitCode `shouldBe` ExitFailure 70
         output `shouldContain` "target not found: foo"
 
-      context "when run target fails" $ do
-        let store = createStore [Target "foo" [] Nothing $ fail "some error"]
+      it "allow to run monitors as targets" $ do
+          result <- capture_ $ withArgs (words "run monitor") $ runAsMain $ createStore $
+              Target "target" []
+                  (Just (Monitor "monitor" [] (const (liftIO $ putStrLn "monitor output"))))
+                  (error "target error") :
+              []
+          result `shouldContain` "monitor output"
+
+      context "when run target cancels" $ do
+        let store = createStore [Target "foo" [] Nothing $ cancel "some error"]
             run = withArgs ["run", "foo"] (runWithExitCode store)
 
         it "writes error message to stderr twice \
@@ -127,7 +135,7 @@ spec = do
               []
         it "runs all targets that don't depend on failing targets" $ do
           (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C") $
-            runWithExitCode $ store (fail "error from A")
+            runWithExitCode $ store (cancel "error from A")
           exitCode `shouldBe` ExitFailure 70
           -- ensure "A" is run first
           output `shouldContain` unlines (
@@ -140,7 +148,7 @@ spec = do
 
         it "does not run targets that depend on failed targets" $ do
           output <- hCapture_ [stderr] $ withArgs (words "run C") $
-            runWithExitCode $ store (fail "error from A")
+            runWithExitCode $ store (cancel "error from A")
           output `shouldSatisfy` (not . ("executing C" `isInfixOf`))
 
         it "runs all targets that don't depend on failing targets even in case of exceptions" $ do
@@ -150,16 +158,15 @@ spec = do
 
         it "fails immediately after the first failing target when --fail-fast is given" $ do
           (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C --fail-fast") $
-            runWithExitCode $ store (fail "error from A")
+            runWithExitCode $ store (cancel "error from A")
           output `shouldContain` "error from A"
           output `shouldSatisfy` (not . ("executing B" `isInfixOf`))
           exitCode `shouldBe` ExitFailure 70
 
       context "when having monitors" $ do
-        let store :: MVar [String] -> TargetM () -> Store
+        let store :: MVar [String] -> TargetM () () -> Store
             store mvar monitor = createStore $
-              Target "t1" [] (Just "m1") (append mvar "t1") :
-              Target "m1" [] Nothing monitor :
+              Target "t1" [] (Just (Monitor "m1" [] (const monitor))) (append mvar "t1") :
               []
         it "doesn't execute target when monitor runs successfully" $ do
           mvar <- newMVar []
@@ -171,20 +178,20 @@ spec = do
           it "re-runs the monitor after running the target" $ do
             mvar <- newMVar []
             let run = withArgs (words "run t1")
-                  (runWithExitCode (store mvar (append mvar "m1" >> outOfDate "m1 complains")))
+                  (runWithExitCode (store mvar (append mvar "m1" >> outOfDate "m1 complains" ())))
             exitCode <- hSilence [stderr] run
             exitCode `shouldSatisfy` (/= ExitSuccess)
             readMVar mvar `shouldReturn` ["m1", "t1", "m1"]
 
           it "raises an error when the second run of the monitor complains" $ do
             mvar <- newMVar []
-            let run = withArgs ["run", "t1"] (runWithExitCode (store mvar (outOfDate "m1 complains")))
+            let run = withArgs ["run", "t1"] (runWithExitCode (store mvar (outOfDate "m1 complains" ())))
             hSilence [stderr] run `shouldReturn` ExitFailure 70
 
           it "runs successfully if the monitor does not complain the second time" $ do
             mvar <- newMVar []
             monitor <- stateDummy $
-              (append mvar "m1.1" >> outOfDate "m1 complains") :
+              (append mvar "m1.1" >> outOfDate "m1 complains" ()) :
               append mvar "m1.2" :
               []
             let run = withArgs (words "run t1") $ runAsMain $ store mvar monitor
@@ -194,7 +201,7 @@ spec = do
           it "does not output the error message of the first monitor run like a normal error message" $ do
             mvar <- newMVar []
             monitor <- stateDummy $
-              (outOfDate "foo") :
+              (outOfDate "foo" ()) :
               (return ()) :
               []
             output <- hCapture_ [stderr] $ withArgs (words "run t1") $ runAsMain $ store mvar monitor

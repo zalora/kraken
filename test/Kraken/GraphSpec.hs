@@ -1,19 +1,21 @@
-{-# LANGUAGE FlexibleInstances, ScopedTypeVariables, QuasiQuotes #-}
+{-# LANGUAGE FlexibleInstances, OverloadedStrings, QuasiQuotes,
+             ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Kraken.GraphSpec (main, spec) where
 
 
-import Test.QuickCheck
-import Data.Graph.Wrapper as Graph
-import Control.Applicative
-import Data.List
-import Data.Traversable
-import Data.String.Interpolate
-import Test.Hspec
-import System.Process
+import           Control.Applicative
+import           Data.Graph.Wrapper      as Graph
+import           Data.List
+import           Data.String.Interpolate
+import           Data.Traversable
+import           System.Process
+import           Test.Hspec
+import           Test.QuickCheck
 
-import Kraken.Graph
+import           Kraken.Graph
+import           Kraken.Target
 
 
 instance Arbitrary (Graph Int ()) where
@@ -142,6 +144,13 @@ spec = do
                 printTestCase (show $ mapPrefixes prefixes) $
                 all (\ p -> p == "" || last p == '.')
                   (fmap snd $ mapPrefixes prefixes)
+
+    describe "toGraph" $ do
+        it "includes the monitors in the store as normal targets" $ do
+            let Right g = toGraph $
+                    Target "target" [] (Just (Monitor "monitor" [] (const (return ())))) (return ()) :
+                    []
+            vertices g `shouldContain` ["monitor"]
 
 
 unique :: (Show a, Eq a) => [a] -> Property

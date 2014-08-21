@@ -6,6 +6,7 @@ module Kraken.TargetMSpec where
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Exception
+import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.List
 import           Data.Monoid
@@ -28,17 +29,17 @@ main = hspec spec
 spec :: Spec
 spec = do
 
-    describe "fail" $ do
+    describe "cancel" $ do
 
-        it "reports calls to fail as Lefts" $ do
-            runTargetM (fail "foo" :: TargetM ()) `shouldReturn` Left [Error Nothing "foo"]
+        it "reports calls to cancel as Lefts" $ do
+            runTargetM (cancel "foo" :: TargetM () ()) `shouldReturn` Left [Error Nothing "foo"]
 
-        it "writes calls to fail to stderr" $ do
-            output <- hCapture_ [stderr] $ runTargetM (fail "foo")
+        it "writes calls to cancel to stderr" $ do
+            output <- hCapture_ [stderr] $ runTargetM (cancel "foo")
             output `shouldContain` "foo"
 
         it "does not execute subsequent actions" $ do
-            output <- capture_ $ runTargetM (fail "foo" >> liftIO (putStrLn "bar"))
+            output <- capture_ $ runTargetM (cancel "foo" >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` (not . ("bar" `isInfixOf`))
 
     describe "mapExceptions" $ do
@@ -48,8 +49,8 @@ spec = do
 
     describe "isolate" $ do
 
-        it "does execute subsequent actions in case of fails" $ do
-            output <- capture_ $ runTargetM (isolate (fail "foo") >> liftIO (putStrLn "bar"))
+        it "does execute subsequent actions in case of cancels" $ do
+            output <- capture_ $ runTargetM (isolate (cancel "foo") >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` ("bar" `isInfixOf`)
 
         it "does execute subsequent actions in case of Exceptions" $ do
@@ -57,12 +58,12 @@ spec = do
             output `shouldSatisfy` ("bar" `isInfixOf`)
 
         it "does collect errors" $ do
-            result <- runTargetM (isolate (fail "foo") >> (fail "bar" :: TargetM ()))
+            result <- runTargetM (isolate (cancel "foo") >> (cancel "bar" :: TargetM () ()))
             result `shouldBe` Left [Error Nothing "foo", Error Nothing "bar"]
 
-        it "prints fail to stderr" $ do
+        it "prints cancel to stderr" $ do
             output <- hCapture_ [stderr] $ runTargetM $
-                isolate (fail "foo") >>
+                isolate (cancel "foo") >>
                 liftIO (hPutStrLn stderr "bar")
             output `shouldBe` "<no target>:\n    foo\nbar\n"
 
@@ -76,42 +77,42 @@ spec = do
 
         it "uses the outer currentTarget" $ do
             result <- runTargetM $ withTargetName "foo" $ isolate $
-                fail "bar"
+                cancel "bar"
             result `shouldBe` Left [Error (Just "foo") "bar"]
 
         testBatch $ monoid (error "proxy" :: IsolatedTargetM)
 
     describe "outOfDate" $ do
-        it "equals '(fail . (\"message from monitor: \" ++))' when used \
+        it "equals '(cancel . (\"message from monitor: \" ++))' when used \
            \outside 'bracketWithMonitor'" $ do
             let msg = "foo"
-            a <- runTargetM (outOfDate msg :: TargetM ())
-            b <- runTargetM ((fail . ("message from monitor: " ++)) msg)
+            a <- runTargetM (outOfDate msg () :: TargetM () ())
+            b <- runTargetM ((cancel . ("message from monitor: " ++)) msg)
             a `shouldBe` b
 
     describe "bracketWithMonitor" $ do
 
-        it "doesn't run the bracketed action if the opening monitors fails" $ do
+        it "doesn't run the bracketed action if the opening monitors cancels" $ do
             output <- capture_ $ runTargetM $ bracketWithMonitor
-                (fail "monitor fails")
+                (const (cancel "monitor cancels"))
                 (liftIO $ putStrLn "foo")
             output `shouldSatisfy` (not . ("foo" `isInfixOf`))
 
         it "runs the bracketed action when the opening monitor uses outOfDate" $ do
             output <- capture_ $ runTargetM $ bracketWithMonitor
-                (outOfDate "foo")
+                (\ _ -> outOfDate "foo" ())
                 (liftIO $ putStrLn "bar")
             output `shouldContain` "bar"
 
         it "outputs the outOfDate message from the opening monitor to stderr" $ do
             output <- hCapture_ [stderr] $ runTargetM $ bracketWithMonitor
-                (outOfDate "foo")
+                (\ _ -> outOfDate "foo" ())
                 (return ())
             output `shouldContain` "foo"
 
         it "doesn't include the outOfDate message from the opening monitor in \
            \the summary" $ do
-            monitor <- mockStateful (outOfDate "foo" : return () : [])
+            monitor <- mockStateful (const (outOfDate "foo" ()) : const (return ()) : [])
             result <- runTargetM $ bracketWithMonitor
                 monitor
                 (return ())
@@ -119,50 +120,68 @@ spec = do
 
         it "fails when the closing monitor uses outOfDate" $ do
             monitor <- mockStateful $
-                outOfDate "foo" :
-                outOfDate "bar" :
+                const (outOfDate "foo" ()) :
+                const (outOfDate "bar" ()) :
                 []
             result <- runTargetM $ bracketWithMonitor monitor (return ())
             result `shouldBe` Left [Error Nothing "message from monitor: bar"]
 
         it "succeeds when the closing monitor succeeds" $ do
             monitor <- mockStateful $
-                outOfDate "foo" :
-                return () :
+                const (outOfDate "foo" ()) :
+                const (return ()) :
                 []
             result <- runTargetM $ bracketWithMonitor
                 monitor
                 (return ())
             result `shouldBe` Right ()
 
+    describe "memoizeMonitorInput" $ do
+        it "allows to memoize monitor inputs when used in the monitor in \
+           \bracketWithMonitor" $ do
+            inputMVar <- newMVar (1 :: Integer)
+            outputMVar <- newMVar (0 :: Integer)
+            let monitor memoized = do
+                    input <- memoizeMonitorInput memoized $ liftIO $ readMVar inputMVar
+                    output <- liftIO $ readMVar outputMVar
+                    when (input > output) (outOfDate (show (input, output)) input)
+                targetAction = liftIO $ do
+                    -- updating the output
+                    input <- readMVar inputMVar
+                    modifyMVar_ outputMVar $ const $ return input
+                    -- The input changes during the target action
+                    modifyMVar_ inputMVar $ \ input -> return (succ input)
+            result <- runTargetM $ bracketWithMonitor monitor targetAction
+            result `shouldBe` Right ()
+
     describe "withTargetName" $ do
 
         it "includes the given target name in error messages" $ do
-            Left result <- runTargetM (withTargetName "fooTarget" $ fail "bar")
+            Left result <- runTargetM (withTargetName "fooTarget" $ cancel "bar")
             concatMap showError result `shouldContain` "fooTarget"
 
 
 -- | Helps to mock stateful operations.
-mockStateful :: MonadIO m => [m a] -> IO (m a)
+mockStateful :: MonadIO m => [i -> m a] -> IO (i -> m a)
 mockStateful actions = do
     mvar <- newMVar actions
-    return $ do
+    return $ \ i -> do
         action <- liftIO $ modifyMVar mvar $ \ (a : r) -> return (r, a)
-        action
+        action i
 
 
 -- | Deeply embedded DSL for (a subset of) TargetM ().
 data IsolatedTargetM
-    = Fail String
+    = Cancel String
     | ReturnUnit
     | LogMessageLn String
 
     | IsolatedTargetM :>> IsolatedTargetM
   deriving Show
 
-unwrap :: IsolatedTargetM -> TargetM ()
+unwrap :: IsolatedTargetM -> TargetM Int ()
 unwrap x = isolate $ case x of
-    Fail s -> fail s
+    Cancel s -> cancel s
     ReturnUnit -> return ()
     LogMessageLn s -> logMessageLn s
     (a :>> b) -> unwrap a >> unwrap b
@@ -181,12 +200,12 @@ instance EqProp IsolatedTargetM where
 
 instance Arbitrary IsolatedTargetM where
     arbitrary = oneof $
-        (Fail <$> arbitrary) :
+        (Cancel <$> arbitrary) :
         (return ReturnUnit) :
         (LogMessageLn <$> arbitrary) :
         ((:>>) <$> arbitrary <*> arbitrary) :
         []
-    shrink (Fail s) = map Fail $ shrink s
+    shrink (Cancel s) = map Cancel $ shrink s
     shrink ReturnUnit = []
     shrink (LogMessageLn s) = map LogMessageLn $ shrink s
     shrink (a :>> b) =
