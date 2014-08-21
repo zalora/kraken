@@ -37,12 +37,12 @@ filterByPrefix (Just (mapPrefixes -> prefixes)) =
     -- filter out nodes
     List.filter (hasPrefix . name) >>>
     -- filter out deps by prefix (including monitors)
-    fmap (\ (Target name deps monitor action) ->
+    fmap (\ (Target name deps action monitor) ->
         Target (dropPrefix name)
             (fmap dropPrefix $ List.filter hasPrefix deps)
+            action
             (maybe Nothing (\ (Monitor name deps action) ->
-                if hasPrefix name then Just (Monitor (dropPrefix name) deps action) else Nothing) monitor)
-            action)
+                if hasPrefix name then Just (Monitor (dropPrefix name) deps action) else Nothing) monitor))
   where
     hasPrefix :: TargetName -> Bool
     hasPrefix n = any (\ prefix -> prefix `isPrefixOf` show n) (fmap fst prefixes)

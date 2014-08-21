@@ -148,7 +148,7 @@ spec = do
     describe "toGraph" $ do
         it "includes the monitors in the store as normal targets" $ do
             let Right g = toGraph $
-                    Target "target" [] (Just (Monitor "monitor" [] (const (return ())))) (return ()) :
+                    Target "target" [] (return ()) (Just (Monitor "monitor" [] (const (return ())))) :
                     []
             vertices g `shouldContain` ["monitor"]
 

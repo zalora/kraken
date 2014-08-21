@@ -27,8 +27,8 @@ import           Kraken.Util
 data TargetP dependencies = Target {
     name :: TargetName,
     dependencies :: dependencies,
-    monitor :: Maybe (Monitor dependencies),
-    run :: TargetM () ()
+    run :: TargetM () (),
+    monitor :: Maybe (Monitor dependencies)
   }
     deriving (Functor)
 
@@ -75,7 +75,7 @@ toGraph targets = do
     -- | to be able to use the monitor as a normal target
     monitorToNode :: Monitor [TargetName] -> (TargetName, Node, [TargetName])
     monitorToNode (Monitor name deps action) =
-        (name, Target name () Nothing (discardMonitorInput $ action Nothing), deps)
+        (name, Target name () (discardMonitorInput $ action Nothing) Nothing, deps)
 
     checkAcyclic g = case cycles g of
         [] -> Right ()

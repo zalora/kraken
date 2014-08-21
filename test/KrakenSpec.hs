@@ -39,8 +39,8 @@ spec = do
   describe "createStore" $ do
     it "does not store dependencies doubled" $ do
       let store = createStore $
-            Target "t1" [] Nothing (return ()) :
-            Target "t2" ["t1", "t1"] Nothing (return ()) :
+            Target "t1" [] (return ()) Nothing :
+            Target "t2" ["t1", "t1"] (return ()) Nothing :
             []
       edges (graph store) `shouldBe` [("t2", "t1")]
 
@@ -49,7 +49,7 @@ spec = do
       it "allows to perform static checks on the store" $ do
         let run = withArgs ["check"] $
               runWithExitCode $ createStore $
-                Target "t1" ["t2"] Nothing (return ()) :
+                Target "t1" ["t2"] (return ()) Nothing :
                 []
         run `shouldThrow` (\ (e :: ErrorCall) -> show e == "target dependencies cannot be found: t2")
 
@@ -64,13 +64,13 @@ spec = do
       it "allow to run monitors as targets" $ do
           result <- capture_ $ withArgs (words "run monitor") $ runAsMain $ createStore $
               Target "target" []
-                  (Just (Monitor "monitor" [] (const (liftIO $ putStrLn "monitor output"))))
-                  (error "target error") :
+                  (error "target error")
+                  (Just (Monitor "monitor" [] (const (liftIO $ putStrLn "monitor output")))) :
               []
           result `shouldContain` "monitor output"
 
       context "when run target cancels" $ do
-        let store = createStore [Target "foo" [] Nothing $ cancel "some error"]
+        let store = createStore [Target "foo" [] (cancel "some error") Nothing]
             run = withArgs ["run", "foo"] (runWithExitCode store)
 
         it "writes error message to stderr twice \
@@ -95,8 +95,8 @@ spec = do
 
       context "when having dependencies" $ do
         let store mvar = createStore $
-              Target "t1" [] Nothing (append mvar "t1") :
-              Target "t2" ["t1"] Nothing (append mvar "t2") :
+              Target "t1" [] (append mvar "t1") Nothing :
+              Target "t2" ["t1"] (append mvar "t2") Nothing :
               []
             run mvar = withArgs (words "run t2") (runAsMain $ store mvar)
         it "runs the dependencies first" $ do
@@ -110,9 +110,9 @@ spec = do
 
       context "when given multiple targets with dependencies" $ do
         let store = createStore $
-              Target "A" ["C"] Nothing (logMessageLn "executing A") :
-              Target "B" ["C"] Nothing (logMessageLn "executing B") :
-              Target "C" [] Nothing (logMessageLn "executing C") :
+              Target "A" ["C"] (logMessageLn "executing A") Nothing :
+              Target "B" ["C"] (logMessageLn "executing B") Nothing :
+              Target "C" [] (logMessageLn "executing C") Nothing :
               []
             run :: IO String
             run = hCapture_ [stderr] $ withArgs (words "run A B") $ runAsMain store
@@ -129,9 +129,9 @@ spec = do
 
       context "when one of multiple targets fails" $ do
         let store errorAction = createStore $
-              Target "A" [] Nothing errorAction :
-              Target "B" [] Nothing (logMessageLn "executing B") :
-              Target "C" ["A", "B"] Nothing (logMessageLn "executing C") :
+              Target "A" [] errorAction Nothing :
+              Target "B" [] (logMessageLn "executing B") Nothing :
+              Target "C" ["A", "B"] (logMessageLn "executing C") Nothing :
               []
         it "runs all targets that don't depend on failing targets" $ do
           (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C") $
@@ -166,7 +166,7 @@ spec = do
       context "when having monitors" $ do
         let store :: MVar [String] -> TargetM () () -> Store
             store mvar monitor = createStore $
-              Target "t1" [] (Just (Monitor "m1" [] (const monitor))) (append mvar "t1") :
+              Target "t1" [] (append mvar "t1") (Just (Monitor "m1" [] (const monitor))) :
               []
         it "doesn't execute target when monitor runs successfully" $ do
           mvar <- newMVar []
@@ -224,9 +224,9 @@ spec = do
       it "lists available targets" $ do
         withArgs ["list"] $ do
           let store = createStore [
-                  Target "foo" [] Nothing $ return ()
-                , Target "bar" [] Nothing $ return ()
-                , Target "baz" [] Nothing $ return ()
+                  Target "foo" [] (return ()) Nothing
+                , Target "bar" [] (return ()) Nothing
+                , Target "baz" [] (return ()) Nothing
                 ]
           capture_ (runAsMain store) `shouldReturn` (unlines . sort) ["foo", "bar", "baz"]
 
@@ -235,7 +235,7 @@ spec = do
         property $ \ (nub -> nodes) -> do
           withArgs ["dot"] $ do
             let store = createStore
-                    (map (\ name -> Target name [] Nothing (return ())) nodes)
+                    (map (\ name -> Target name [] (return ()) Nothing) nodes)
             output <- capture_ (runAsMain store)
             output `shouldSatisfy` \ output ->
                 all (\ (TargetName node) -> node `isInfixOf` output) nodes
@@ -243,8 +243,8 @@ spec = do
       it "produces output target graph in dot format" $ do
         withArgs ["dot"] $ do
           let store = createStore [
-                  Target "foo" ["bar"] Nothing $ return ()
-                , Target "bar" [] Nothing $ return ()
+                  Target "foo" ["bar"] (return ()) Nothing
+                , Target "bar" [] (return ()) Nothing
                 ]
           (unwords . words <$> capture_ (runAsMain store)) `shouldReturn` unwords [
               "digraph targets {"
@@ -261,8 +261,8 @@ spec = do
         it "removes the longest matching prefix" $ do
           withArgs ["dot", "-p", "prefix", "-p", "prefixlong"] $ do
             let store = createStore $
-                  Target "prefix_t1" [] Nothing (return ()) :
-                  Target "prefixlong_t2" [] Nothing (return ()) :
+                  Target "prefix_t1" [] (return ()) Nothing :
+                  Target "prefixlong_t2" [] (return ()) Nothing :
                   []
             output <- capture_ (runAsMain store)
             when ("long" `isInfixOf` output) $
@@ -270,8 +270,8 @@ spec = do
 
         it "doesn't strip but abbreviates prefixes" $ do
           let store = createStore $
-                Target "foobar.1" [] Nothing (return ()) :
-                Target "fuubar.2" [] Nothing (return ()) :
+                Target "foobar.1" [] (return ()) Nothing :
+                Target "fuubar.2" [] (return ()) Nothing :
                 []
           output <- withArgs (words "dot -p foobar. -p fuubar.") $ capture_ (runAsMain store)
           output `shouldContain` "\"fo.1\""
