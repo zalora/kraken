@@ -2,9 +2,11 @@
 
 module Kraken.Graph (
     TargetPoly(..),
-    Monitor(..),
-    monitorName,
     Target,
+    MonitorPoly(..),
+    Monitor,
+    monitorName,
+
     Node,
     toNode,
     toGraph,
@@ -28,26 +30,29 @@ data TargetPoly dependencies = Target {
     name :: TargetName,
     dependencies :: dependencies,
     action :: TargetM (),
-    monitor :: Maybe (Monitor dependencies)
+    monitor :: Maybe (MonitorPoly dependencies)
   }
     deriving (Functor)
-
-data Monitor dependencies where
-    Monitor :: TargetName ->
-               dependencies ->
-               (Maybe monitorInput -> MonitorM monitorInput ()) ->
-               Monitor dependencies
-
-instance Functor Monitor where
-    fmap f (Monitor name deps action) = Monitor name (f deps) action
-
-monitorName :: Monitor dependencies -> TargetName
-monitorName (Monitor name _ _) = name
-
 
 -- | Target type that still contains its dependencies. Users of kraken use this
 -- type to specify their targets.
 type Target = TargetPoly [TargetName]
+
+
+data MonitorPoly dependencies where
+    Monitor :: TargetName ->
+               dependencies ->
+               (Maybe monitorInput -> MonitorM monitorInput ()) ->
+               MonitorPoly dependencies
+
+type Monitor = MonitorPoly [TargetName]
+
+instance Functor MonitorPoly where
+    fmap f (Monitor name deps action) = Monitor name (f deps) action
+
+monitorName :: MonitorPoly dependencies -> TargetName
+monitorName (Monitor name _ _) = name
+
 
 -- | Node type for the target graph, stripped of dependencies.
 -- We don't want to store target dependencies redundantly, so this is
@@ -62,7 +67,7 @@ toNode = fmap (const ())
 
 toGraph :: [Target] -> Either String (Graph TargetName Node)
 toGraph targets = do
-    let monitorDependencies :: Maybe (Monitor [TargetName]) -> [TargetName]
+    let monitorDependencies :: Maybe Monitor -> [TargetName]
         monitorDependencies Nothing = []
         monitorDependencies (Just (Monitor _ dependencies _)) =
             dependencies
@@ -75,7 +80,7 @@ toGraph targets = do
     return graph
   where
     -- | to be able to use the monitor as a normal target
-    monitorToNode :: Monitor [TargetName] -> (TargetName, Node, [TargetName])
+    monitorToNode :: Monitor -> (TargetName, Node, [TargetName])
     monitorToNode (Monitor name deps action) =
         (name, Target name () (discardMonitorInput $ action Nothing) Nothing, deps)
 
