@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
 module Kraken.TargetMSpec where
 
@@ -45,7 +45,7 @@ spec = do
     describe "mapExceptions" $ do
         it "allows to transform exceptions" $ do
             runTargetM (mapExceptions (\ (ErrorCall x) -> ErrorCall (reverse x)) (error "bla"))
-                `shouldThrow` (== ErrorCall "alb")
+                `shouldThrow` (\ (e :: ErrorCall) -> show e == "alb")
 
     describe "isolate" $ do
 
