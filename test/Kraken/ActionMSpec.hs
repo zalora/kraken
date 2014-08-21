@@ -175,15 +175,17 @@ data IsolatedTargetM
     = Cancel String
     | ReturnUnit
     | LogMessageLn String
+    | OutOfDate String Int
 
     | IsolatedTargetM :>> IsolatedTargetM
   deriving Show
 
-unwrap :: IsolatedTargetM -> MonitorM Int ()
+unwrap :: IsolatedTargetM -> ActionM Int ()
 unwrap x = isolate $ case x of
     Cancel s -> cancel s
     ReturnUnit -> return ()
     LogMessageLn s -> logMessageLn s
+    OutOfDate s n -> outOfDate s n
     (a :>> b) -> unwrap a >> unwrap b
 
 instance Monoid IsolatedTargetM where
@@ -203,11 +205,15 @@ instance Arbitrary IsolatedTargetM where
         (Cancel <$> arbitrary) :
         (return ReturnUnit) :
         (LogMessageLn <$> arbitrary) :
+        (OutOfDate <$> arbitrary <*> arbitrary) :
         ((:>>) <$> arbitrary <*> arbitrary) :
         []
     shrink (Cancel s) = map Cancel $ shrink s
     shrink ReturnUnit = []
     shrink (LogMessageLn s) = map LogMessageLn $ shrink s
+    shrink (OutOfDate s n) =
+        [OutOfDate s' n | s' <- shrink s] ++
+        [OutOfDate s n' | n' <- shrink n]
     shrink (a :>> b) =
         [a' :>> b | a' <- shrink a] ++
         [a :>> b' | b' <- shrink b] ++
