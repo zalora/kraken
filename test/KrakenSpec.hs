@@ -164,7 +164,7 @@ spec = do
           exitCode `shouldBe` ExitFailure 70
 
       context "when having monitors" $ do
-        let store :: MVar [String] -> TargetM () () -> Store
+        let store :: MVar [String] -> TargetM () -> Store
             store mvar monitor = createStore $
               Target "t1" [] (append mvar "t1") (Just (Monitor "m1" [] (const monitor))) :
               []

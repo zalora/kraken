@@ -27,7 +27,7 @@ import           Kraken.Util
 data TargetPoly dependencies = Target {
     name :: TargetName,
     dependencies :: dependencies,
-    action :: TargetM () (),
+    action :: TargetM (),
     monitor :: Maybe (Monitor dependencies)
   }
     deriving (Functor)
@@ -35,7 +35,7 @@ data TargetPoly dependencies = Target {
 data Monitor dependencies where
     Monitor :: TargetName ->
                dependencies ->
-               (Maybe monitorInput -> TargetM monitorInput ()) ->
+               (Maybe monitorInput -> MonitorM monitorInput ()) ->
                Monitor dependencies
 
 instance Functor Monitor where

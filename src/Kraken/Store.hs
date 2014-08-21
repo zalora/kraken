@@ -92,7 +92,7 @@ data TargetList
     | SelectedTargets [TargetName]
   deriving (Show)
 
-lookupTargets :: Store -> Bool -> TargetList -> TargetM () [TargetName]
+lookupTargets :: Store -> Bool -> TargetList -> TargetM [TargetName]
 lookupTargets store _ AllTargets = return $ map name $ toList $ graph store
 lookupTargets store useAsPrefix (SelectedTargets names) =
     map name <$>
@@ -111,7 +111,7 @@ lookupTargets store useAsPrefix (SelectedTargets names) =
         then show needle `isPrefixOf` show (name t)
         else name t == needle
 
-lookupTarget :: Store -> TargetName -> TargetM () Node
+lookupTarget :: Store -> TargetName -> TargetM Node
 lookupTarget store targetName =
     case filter (\ t -> name t == targetName) (toList $ graph store) of
         [a] -> return a
@@ -119,7 +119,7 @@ lookupTarget store targetName =
 
 -- | returns all targets to be executed for running a given target, i.e.
 -- including dependencies and the given target itself.
-lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM () [Node]
+lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM [Node]
 lookupExecutionPlan store _dontChaseDependencies@True targets =
     mapM (lookupTarget store) targets
 lookupExecutionPlan store _dontChaseDependencies@False targets = do
@@ -170,7 +170,7 @@ parseKrakenOptions description customParser = execParser (options description cu
 runStore :: Store -> Options a -> IO ()
 runStore store opts = case opts of
     Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast -> do
-        result <- runTargetM $ do
+        result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
             runTargets store dryRun dontChaseDependencies omitMonitors failFast targets
         either reportAndExit return result
@@ -199,7 +199,7 @@ runStore store opts = case opts of
 -- * running
 
 -- | Will run all given targets, and collect their error messages.
-runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM () ()
+runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM ()
 runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
     executionPlan <- lookupExecutionPlan store dontChaseDependencies targets
     logMessage . unlines $
@@ -228,7 +228,7 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
 --    them.
 -- 3. Run the monitor again. If any errors occur, stop and report them. If no
 --    errors occur than the target was created successfully.
-runTargetWithMonitor :: Bool -> Node -> TargetM () ()
+runTargetWithMonitor :: Bool -> Node -> TargetM ()
 runTargetWithMonitor _omitMonitors target@Target{monitor = Nothing} =
     runTarget target
 runTargetWithMonitor True target =
@@ -243,7 +243,7 @@ runTargetWithMonitor False target@Target{monitor = Just (Monitor monitorName () 
 
 
 -- | Runs the target ignoring dependencies and monitors.
-runTarget :: Node -> TargetM () ()
+runTarget :: Node -> TargetM ()
 runTarget target = withTargetName (name target) $ do
     logMessageLn [i|running target #{name target}|]
     action target

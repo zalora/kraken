@@ -6,9 +6,11 @@ module Kraken.TargetM (
     showError,
 
     Error(..),
+    ActionM,
     TargetM,
+    MonitorM,
     cancel,
-    runTargetM,
+    runActionM,
 
     withTargetName,
 
@@ -63,43 +65,48 @@ data ShortCut monitorInput
 type State = [Error]
 
 
--- | Our monad to run and monitor targets.
-data TargetM monitorInput a = TargetM {
-    getTargetM :: EitherT (ShortCut monitorInput) (StateT State (ReaderT (Maybe TargetName) IO)) a
+-- | Our monad to run monitors and targets.
+data ActionM monitorInput a = ActionM {
+    getActionM :: EitherT (ShortCut monitorInput) (StateT State (ReaderT (Maybe TargetName) IO)) a
   }
     deriving (Functor)
 
-instance Applicative (TargetM monitorInput) where
-    pure = TargetM . pure
-    TargetM f <*> TargetM x = TargetM (f <*> x)
+-- | Monad for actions for targets.
+type TargetM a = ActionM () a
+-- | Monad for actions in monitors.
+type MonitorM monitorInput a = ActionM monitorInput a
 
-instance Monad (TargetM monitorInput) where
-    TargetM a >>= f = TargetM $ do
+instance Applicative (ActionM monitorInput) where
+    pure = ActionM . pure
+    ActionM f <*> ActionM x = ActionM (f <*> x)
+
+instance Monad (ActionM monitorInput) where
+    ActionM a >>= f = ActionM $ do
         x <- a
-        let (TargetM b) = f x
+        let (ActionM b) = f x
         b
-    return = TargetM . return
+    return = ActionM . return
     fail msg = do
-        logMessageLn "TargetM.fail is discouraged: please, use cancel"
+        logMessageLn "ActionM.fail is discouraged: please, use cancel"
         cancel msg
 
-cancel :: String -> TargetM monitorInput a
-cancel msg = TargetM $ do
+cancel :: String -> ActionM monitorInput a
+cancel msg = ActionM $ do
     target <- ask
     let error = Error target msg
     logMessage $ showError error
     left $ ErrorShortCut error
 
-instance MonadIO (TargetM monitorInput) where
-    liftIO = TargetM . liftIO
+instance MonadIO (ActionM monitorInput) where
+    liftIO = ActionM . liftIO
 
-unwrap :: State -> Maybe TargetName -> TargetM monitorInput a -> IO (Either (ShortCut monitorInput) a, State)
-unwrap state currentTarget (TargetM action) =
+unwrap :: State -> Maybe TargetName -> ActionM monitorInput a -> IO (Either (ShortCut monitorInput) a, State)
+unwrap state currentTarget (ActionM action) =
     runReaderT (runStateT (runEitherT action) state) currentTarget
 
 
-runTargetM :: TargetM monitorInput a -> IO (Either [Error] a)
-runTargetM action = do
+runActionM :: ActionM monitorInput a -> IO (Either [Error] a)
+runActionM action = do
     (result, state) <- unwrap [] Nothing action
     return $ case (result, state) of
         (Right x, []) -> Right x
@@ -112,34 +119,34 @@ runTargetM action = do
 
 -- | Sets the TargetName that will be included in the error messages that
 -- can be raised by 'cancel' and 'outOfDate'.
-withTargetName :: TargetName -> TargetM monitorInput a -> TargetM monitorInput a
-withTargetName name (TargetM action) =
-    TargetM $ local (const $ Just name) action
+withTargetName :: TargetName -> ActionM monitorInput a -> ActionM monitorInput a
+withTargetName name (ActionM action) =
+    ActionM $ local (const $ Just name) action
 
 
 -- | Runs the given action and always succeeds. Both Lefts and Exceptions are
 -- being written to the error state.
-isolate :: TargetM monitorInput () -> TargetM monitorInput ()
+isolate :: ActionM monitorInput () -> ActionM monitorInput ()
 isolate action = do
-    currentTarget <- TargetM ask
+    currentTarget <- ActionM ask
     result <- liftIO $ catchAny
-        (runTargetM ((maybe id withTargetName currentTarget) action))
+        (runActionM ((maybe id withTargetName currentTarget) action))
         (\ e -> do
             let error = Error currentTarget (show e)
             logMessage $ showError error
             return $ Left [error])
     case result of
         Right () -> return ()
-        Left errs -> TargetM $ do
+        Left errs -> ActionM $ do
             state <- get
             put (state ++ errs)
             return ()
 
-mapExceptions :: (E.Exception a, E.Exception b) => (a -> b) -> TargetM monitorInput o -> TargetM monitorInput o
+mapExceptions :: (E.Exception a, E.Exception b) => (a -> b) -> ActionM monitorInput o -> ActionM monitorInput o
 mapExceptions f action = catch action (liftIO . E.throwIO . f)
 
-catch :: E.Exception e => TargetM monitorInput a -> (e -> TargetM monitorInput a) -> TargetM monitorInput a
-catch action handler = TargetM $ do
+catch :: E.Exception e => ActionM monitorInput a -> (e -> ActionM monitorInput a) -> ActionM monitorInput a
+catch action handler = ActionM $ do
     state <- get
     currentTarget <- ask
     (result, nextState) <- liftIO $ E.catch
@@ -151,21 +158,21 @@ catch action handler = TargetM $ do
         Left e -> left e
 
 
-outOfDate :: String -> monitorInput -> TargetM monitorInput a
-outOfDate msg monitorInput = TargetM $ do
+outOfDate :: String -> monitorInput -> MonitorM monitorInput a
+outOfDate msg monitorInput = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget ("message from monitor: " ++ msg)
     logMessage $ showError error
     left $ OutDated error monitorInput
 
-discardMonitorInput :: TargetM monitorInput a -> TargetM () a
-discardMonitorInput (TargetM action) = TargetM $
+discardMonitorInput :: MonitorM monitorInput a -> TargetM a
+discardMonitorInput (ActionM action) = ActionM $
     bimapEitherT (fmap (const ())) id action
 
 
-bracketWithMonitor :: (Maybe monitorInput -> TargetM monitorInput ())
-    -> TargetM () () -> TargetM () ()
-bracketWithMonitor monitor (TargetM action) = TargetM $ do
+bracketWithMonitor :: (Maybe monitorInput -> MonitorM monitorInput ())
+    -> TargetM () -> TargetM ()
+bracketWithMonitor monitor (ActionM action) = ActionM $ do
     currentState <- get
     currentTarget <- ask
     -- running the opening monitor
@@ -174,12 +181,12 @@ bracketWithMonitor monitor (TargetM action) = TargetM $ do
     case result of
         (Left (OutDated _ monitorInput)) -> do
             action
-            getTargetM $ discardMonitorInput (monitor (Just monitorInput))
+            getActionM $ discardMonitorInput (monitor (Just monitorInput))
         (Left (ErrorShortCut error)) ->
             left $ ErrorShortCut error
         (Right ()) -> return ()
 
-memoizeMonitorInput :: Maybe monitorInput -> TargetM x monitorInput
-    -> TargetM x monitorInput
+memoizeMonitorInput :: Maybe monitorInput -> MonitorM x monitorInput
+    -> MonitorM x monitorInput
 memoizeMonitorInput Nothing action = action
 memoizeMonitorInput (Just input) _ = return input

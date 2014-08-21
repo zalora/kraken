@@ -32,51 +32,51 @@ spec = do
     describe "cancel" $ do
 
         it "reports calls to cancel as Lefts" $ do
-            runTargetM (cancel "foo" :: TargetM () ()) `shouldReturn` Left [Error Nothing "foo"]
+            runActionM (cancel "foo" :: TargetM ()) `shouldReturn` Left [Error Nothing "foo"]
 
         it "writes calls to cancel to stderr" $ do
-            output <- hCapture_ [stderr] $ runTargetM (cancel "foo")
+            output <- hCapture_ [stderr] $ runActionM (cancel "foo")
             output `shouldContain` "foo"
 
         it "does not execute subsequent actions" $ do
-            output <- capture_ $ runTargetM (cancel "foo" >> liftIO (putStrLn "bar"))
+            output <- capture_ $ runActionM (cancel "foo" >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` (not . ("bar" `isInfixOf`))
 
     describe "mapExceptions" $ do
         it "allows to transform exceptions" $ do
-            runTargetM (mapExceptions (\ (ErrorCall x) -> ErrorCall (reverse x)) (error "bla"))
+            runActionM (mapExceptions (\ (ErrorCall x) -> ErrorCall (reverse x)) (error "bla"))
                 `shouldThrow` (\ (e :: ErrorCall) -> show e == "alb")
 
     describe "isolate" $ do
 
         it "does execute subsequent actions in case of cancels" $ do
-            output <- capture_ $ runTargetM (isolate (cancel "foo") >> liftIO (putStrLn "bar"))
+            output <- capture_ $ runActionM (isolate (cancel "foo") >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` ("bar" `isInfixOf`)
 
         it "does execute subsequent actions in case of Exceptions" $ do
-            output <- capture_ $ runTargetM (isolate (error "foo") >> liftIO (putStrLn "bar"))
+            output <- capture_ $ runActionM (isolate (error "foo") >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` ("bar" `isInfixOf`)
 
         it "does collect errors" $ do
-            result <- runTargetM (isolate (cancel "foo") >> (cancel "bar" :: TargetM () ()))
+            result <- runActionM (isolate (cancel "foo") >> (cancel "bar" :: TargetM ()))
             result `shouldBe` Left [Error Nothing "foo", Error Nothing "bar"]
 
         it "prints cancel to stderr" $ do
-            output <- hCapture_ [stderr] $ runTargetM $
+            output <- hCapture_ [stderr] $ runActionM $
                 isolate (cancel "foo") >>
                 liftIO (hPutStrLn stderr "bar")
             output `shouldBe` "<no target>:\n    foo\nbar\n"
 
         it "prints exceptions to stderr" $ do
-            output <- hCapture_ [stderr] $ runTargetM (isolate (error "foo"))
+            output <- hCapture_ [stderr] $ runActionM (isolate (error "foo"))
             output `shouldContain` "foo"
 
         it "converts exceptions to Lefts" $ do
-            runTargetM (isolate (error "foo")) `shouldReturn`
+            runActionM (isolate (error "foo")) `shouldReturn`
                 Left [Error Nothing "foo"]
 
         it "uses the outer currentTarget" $ do
-            result <- runTargetM $ withTargetName "foo" $ isolate $
+            result <- runActionM $ withTargetName "foo" $ isolate $
                 cancel "bar"
             result `shouldBe` Left [Error (Just "foo") "bar"]
 
@@ -86,26 +86,26 @@ spec = do
         it "equals '(cancel . (\"message from monitor: \" ++))' when used \
            \outside 'bracketWithMonitor'" $ do
             let msg = "foo"
-            a <- runTargetM (outOfDate msg () :: TargetM () ())
-            b <- runTargetM ((cancel . ("message from monitor: " ++)) msg)
+            a <- runActionM (outOfDate msg () :: TargetM ())
+            b <- runActionM ((cancel . ("message from monitor: " ++)) msg)
             a `shouldBe` b
 
     describe "bracketWithMonitor" $ do
 
         it "doesn't run the bracketed action if the opening monitors cancels" $ do
-            output <- capture_ $ runTargetM $ bracketWithMonitor
+            output <- capture_ $ runActionM $ bracketWithMonitor
                 (const (cancel "monitor cancels"))
                 (liftIO $ putStrLn "foo")
             output `shouldSatisfy` (not . ("foo" `isInfixOf`))
 
         it "runs the bracketed action when the opening monitor uses outOfDate" $ do
-            output <- capture_ $ runTargetM $ bracketWithMonitor
+            output <- capture_ $ runActionM $ bracketWithMonitor
                 (\ _ -> outOfDate "foo" ())
                 (liftIO $ putStrLn "bar")
             output `shouldContain` "bar"
 
         it "outputs the outOfDate message from the opening monitor to stderr" $ do
-            output <- hCapture_ [stderr] $ runTargetM $ bracketWithMonitor
+            output <- hCapture_ [stderr] $ runActionM $ bracketWithMonitor
                 (\ _ -> outOfDate "foo" ())
                 (return ())
             output `shouldContain` "foo"
@@ -113,7 +113,7 @@ spec = do
         it "doesn't include the outOfDate message from the opening monitor in \
            \the summary" $ do
             monitor <- mockStateful (const (outOfDate "foo" ()) : const (return ()) : [])
-            result <- runTargetM $ bracketWithMonitor
+            result <- runActionM $ bracketWithMonitor
                 monitor
                 (return ())
             result `shouldBe` Right ()
@@ -123,7 +123,7 @@ spec = do
                 const (outOfDate "foo" ()) :
                 const (outOfDate "bar" ()) :
                 []
-            result <- runTargetM $ bracketWithMonitor monitor (return ())
+            result <- runActionM $ bracketWithMonitor monitor (return ())
             result `shouldBe` Left [Error Nothing "message from monitor: bar"]
 
         it "succeeds when the closing monitor succeeds" $ do
@@ -131,7 +131,7 @@ spec = do
                 const (outOfDate "foo" ()) :
                 const (return ()) :
                 []
-            result <- runTargetM $ bracketWithMonitor
+            result <- runActionM $ bracketWithMonitor
                 monitor
                 (return ())
             result `shouldBe` Right ()
@@ -151,13 +151,13 @@ spec = do
                     modifyMVar_ outputMVar $ const $ return input
                     -- The input changes during the target action
                     modifyMVar_ inputMVar $ \ input -> return (succ input)
-            result <- runTargetM $ bracketWithMonitor monitor targetAction
+            result <- runActionM $ bracketWithMonitor monitor targetAction
             result `shouldBe` Right ()
 
     describe "withTargetName" $ do
 
         it "includes the given target name in error messages" $ do
-            Left result <- runTargetM (withTargetName "fooTarget" $ cancel "bar")
+            Left result <- runActionM (withTargetName "fooTarget" $ cancel "bar")
             concatMap showError result `shouldContain` "fooTarget"
 
 
@@ -179,7 +179,7 @@ data IsolatedTargetM
     | IsolatedTargetM :>> IsolatedTargetM
   deriving Show
 
-unwrap :: IsolatedTargetM -> TargetM Int ()
+unwrap :: IsolatedTargetM -> MonitorM Int ()
 unwrap x = isolate $ case x of
     Cancel s -> cancel s
     ReturnUnit -> return ()
@@ -192,8 +192,8 @@ instance Monoid IsolatedTargetM where
 
 instance EqProp IsolatedTargetM where
     a =-= b = morallyDubiousIOProperty $ do
-      resultA <- hCapture [stdout, stderr] $ runTargetM $ unwrap a
-      resultB <- hCapture [stdout, stderr] $ runTargetM $ unwrap b
+      resultA <- hCapture [stdout, stderr] $ runActionM $ unwrap a
+      resultB <- hCapture [stdout, stderr] $ runActionM $ unwrap b
       return $
           printTestCase (show resultA ++ "\n/=\n" ++ show resultB) $
           resultA == resultB
