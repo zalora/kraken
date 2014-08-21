@@ -14,6 +14,7 @@ import           System.Process
 import           Test.Hspec
 import           Test.QuickCheck
 
+import           Kraken.Dot
 import           Kraken.Graph
 
 
