@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
-module Kraken.TargetMSpec where
+module Kraken.ActionMSpec where
 
 
 import           Control.Applicative
@@ -19,7 +19,7 @@ import           Test.QuickCheck.Checkers
 import           Test.QuickCheck.Classes
 import           Test.QuickCheck.Property (morallyDubiousIOProperty)
 
-import           Kraken.TargetM
+import           Kraken.ActionM
 import           Kraken.Util
 
 

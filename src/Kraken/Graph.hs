@@ -19,7 +19,7 @@ import           Data.Graph.Wrapper      as Graph
 import           Data.List               as List
 import           Data.Maybe
 
-import           Kraken.TargetM
+import           Kraken.ActionM
 import           Kraken.Util
 
 

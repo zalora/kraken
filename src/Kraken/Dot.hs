@@ -15,7 +15,7 @@ import           Prelude                 hiding (any, concat, elem)
 import           Safe
 
 import           Kraken.Graph
-import           Kraken.TargetM
+import           Kraken.ActionM
 import           Kraken.Util
 
 toDot :: Bool -> Maybe [String] -> Bool -> [Target] -> String

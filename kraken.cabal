@@ -28,7 +28,7 @@ library
       Kraken
       Kraken.Dot
       Kraken.Graph
-      Kraken.TargetM
+      Kraken.ActionM
       Kraken.Util
   other-modules:
       Kraken.Store

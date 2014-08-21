@@ -1,6 +1,6 @@
 
 module Kraken (
-    module Kraken.TargetM,
+    module Kraken.ActionM,
     module Kraken.Store,
 
     TargetPoly(..),
@@ -14,5 +14,5 @@ module Kraken (
 
 import           Kraken.Graph
 import           Kraken.Store
-import           Kraken.TargetM
+import           Kraken.ActionM
 import           Kraken.Util

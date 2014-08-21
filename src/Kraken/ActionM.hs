@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, ScopedTypeVariables, DeriveFunctor #-}
 
-module Kraken.TargetM (
+module Kraken.ActionM (
     TargetName(..),
     showError,
 
