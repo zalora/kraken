@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, ScopedTypeVariables, DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, FlexibleInstances, GeneralizedNewtypeDeriving,
+             MultiParamTypeClasses, ScopedTypeVariables #-}
 
 module Kraken.ActionM (
     TargetName(..),
@@ -14,6 +14,7 @@ module Kraken.ActionM (
 
     withTargetName,
 
+    logError,
     isolate,
     catch,
     mapExceptions,
@@ -27,6 +28,7 @@ module Kraken.ActionM (
 
 
 import           Control.Applicative
+import           Control.Arrow              ((>>>))
 import qualified Control.Exception          as E
 import           Control.Exception.Enclosed
 import           Control.Monad.IO.Class
@@ -124,6 +126,18 @@ withTargetName :: TargetName -> ActionM monitorInput a -> ActionM monitorInput a
 withTargetName name (ActionM action) =
     ActionM $ local (const $ Just name) action
 
+
+-- | Issues an error. The error will
+-- - be written to stderr,
+-- - be included in the error summary that is output before the process ends and
+-- - cause the process to exit with a non-zero exitcode.
+-- However, it will not shortcut the execution of the monadic action.
+logError :: String -> ActionM x ()
+logError msg = ActionM $ do
+    currentTarget <- ask
+    let error = Error currentTarget msg
+    logMessage $ showError error
+    get >>= ((++ [error]) >>> put)
 
 -- | Runs the given action and always succeeds. Both Lefts and Exceptions are
 -- being written to the error state.

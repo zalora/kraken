@@ -35,6 +35,20 @@ spec = do
             Left result <- runActionM (withTargetName "fooTarget" $ cancel "bar")
             concatMap showError result `shouldContain` "fooTarget"
 
+    describe "logError" $ do
+
+        it "writes errors to stderr" $ do
+            output <- hCapture_ [stderr] $ runActionM (logError "foo")
+            output `shouldContain` "foo"
+
+        it "includes error in the error summary" $ do
+            runActionM (logError "foo")
+                `shouldReturn` Left [Error Nothing "foo"]
+
+        it "does not shortcut the monadic action" $ do
+            output <- capture_ $ runActionM (logError "foo" >> liftIO (putStrLn "bar"))
+            output `shouldContain` "bar"
+
     describe "cancel" $ do
 
         it "reports calls to cancel as Lefts" $ do
