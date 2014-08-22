@@ -7,7 +7,6 @@ module Kraken (
     Target,
     MonitorPoly(..),
     Monitor,
-    monitorName,
 
     logMessageLn,
     logMessage,

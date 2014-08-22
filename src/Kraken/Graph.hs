@@ -1,11 +1,10 @@
-{-# LANGUAGE DeriveFunctor, GADTs, QuasiQuotes #-}
+{-# LANGUAGE DeriveFunctor, ExistentialQuantification, QuasiQuotes #-}
 
 module Kraken.Graph (
     TargetPoly(..),
     Target,
     MonitorPoly(..),
     Monitor,
-    monitorName,
 
     Node,
     toNode,
@@ -17,8 +16,8 @@ module Kraken.Graph (
   ) where
 
 
-import           Data.Graph.Wrapper      as Graph
-import           Data.List               as List
+import           Data.Graph.Wrapper as Graph
+import           Data.List          as List
 import           Data.Maybe
 
 import           Kraken.ActionM
@@ -39,19 +38,16 @@ data TargetPoly dependencies = Target {
 type Target = TargetPoly [TargetName]
 
 
-data MonitorPoly dependencies where
-    Monitor :: TargetName ->
-               dependencies ->
-               (Maybe monitorInput -> MonitorM monitorInput ()) ->
-               MonitorPoly dependencies
+data MonitorPoly dependencies = forall monitorInput . Monitor {
+    monitorName :: TargetName,
+    monitorDependencies :: dependencies,
+    monitorAction :: (Maybe monitorInput -> MonitorM monitorInput ())
+  }
 
 type Monitor = MonitorPoly [TargetName]
 
 instance Functor MonitorPoly where
     fmap f (Monitor name deps action) = Monitor name (f deps) action
-
-monitorName :: MonitorPoly dependencies -> TargetName
-monitorName (Monitor name _ _) = name
 
 
 -- | Node type for the target graph, stripped of dependencies.
