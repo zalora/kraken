@@ -14,9 +14,10 @@ import           Data.String.Interpolate
 import           Prelude                 hiding (any, concat, elem)
 import           Safe
 
-import           Kraken.Graph
 import           Kraken.ActionM
+import           Kraken.Graph
 import           Kraken.Util
+
 
 toDot :: Bool -> Maybe [String] -> Bool -> [Target] -> String
 toDot withMonitors prefixes transitiveReductionFlag targets = unlines $
@@ -41,8 +42,8 @@ filterByPrefix (Just (mapPrefixes -> prefixes)) =
         Target (dropPrefix name)
             (fmap dropPrefix $ List.filter hasPrefix deps)
             action
-            (maybe Nothing (\ (Monitor name deps action) ->
-                if hasPrefix name then Just (Monitor (dropPrefix name) deps action) else Nothing) monitor))
+            (maybe Nothing dropPrefixesFromMonitor monitor))
+
   where
     hasPrefix :: TargetName -> Bool
     hasPrefix n = any (\ prefix -> prefix `isPrefixOf` show n) (fmap fst prefixes)
@@ -53,6 +54,10 @@ filterByPrefix (Just (mapPrefixes -> prefixes)) =
                 headNote "Kraken.Graph.filterByPrefix: prefix filtering error"
                 (dropWhile (\ (prefix, _) -> not (prefix `isPrefixOf` n)) prefixes)
         in TargetName $ (replacingPrefix ++) $ drop (length matchingPrefix) n
+    dropPrefixesFromMonitor :: Monitor -> Maybe Monitor
+    dropPrefixesFromMonitor (Monitor name deps action) = if hasPrefix name
+        then Just (Monitor (dropPrefix name) (map dropPrefix $ List.filter hasPrefix deps) action)
+        else Nothing
 
 -- | Creates a mapping from prefixes to be replaced by abbreviations.
 mapPrefixes :: [String] -> [(String, String)]
