@@ -2,6 +2,7 @@
 module Kraken.Store (
     Store(graph),
     createStore,
+    checkStore,
     runAsMain,
     parseKrakenOptions,
     Options(customOptions),
@@ -20,17 +21,17 @@ import           Data.List               as List (foldl', group, isPrefixOf,
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                as Set (Set, empty, fromList, insert,
-                                                 intersection, isSubsetOf,
-                                                 member, null, (\\))
+                                                 isSubsetOf, member, union,
+                                                 (\\))
 import           Data.String.Interpolate
 import           Data.Traversable        (forM)
 import           Options.Applicative     hiding (action)
 import           System.Exit
 import           System.IO
 
+import           Kraken.ActionM
 import           Kraken.Dot
 import           Kraken.Graph
-import           Kraken.ActionM
 import           Kraken.Util
 
 
@@ -51,37 +52,37 @@ createStore targets =
 
 checkStore :: [Target] -> Either String Store
 checkStore targets = do
-    targetNames <- checkUniqueTargetNames targets
-    checkMonitors targetNames
-    checkDependencies targetNames
+    checkUniqueTargetNames
+    checkDependencies
     graph <- toGraph targets
     return $ Store graph targets
   where
-    checkMonitors targetNames =
-        if Set.null (intersection monitors targetNames)
-            then Right()
-            else Left ("Please, specify monitors only once inside the target:: " ++
-                (unwords $ sort $ fmap show $ toList (intersection monitors targetNames)))
-    checkDependencies targetNames =
-        if allDependencies `isSubsetOf` targetNames then
-            Right ()
-        else
-            Left ("target dependencies cannot be found: " ++
-                 (unwords $ fmap show $ toList (allDependencies \\ targetNames)))
-
-    checkUniqueTargetNames targets =
-        case filter (\ g -> length g > 1) (group (sort (fmap name targets))) of
-            [] -> Right $ Set.fromList $ fmap name targets
+    checkUniqueTargetNames =
+        case filter (\ g -> length g > 1) (group (sort (targetNames ++ monitorNames))) of
+            [] -> Right ()
             doubles -> Left ("doubled target names: " ++
                 unwords (fmap show $ nub $ concat doubles))
 
-    monitors :: Set TargetName
-    monitors = Set.fromList $
-        fmap monitorName $ catMaybes $
-        fmap monitor targets
+    checkDependencies =
+        if allDependencies `isSubsetOf` targetAndMonitorNames then
+            Right ()
+        else
+            Left ("target dependencies cannot be found: " ++
+                 (unwords $ fmap show $ sort $ toList (allDependencies \\ targetAndMonitorNames)))
+
+    monitorNames :: [TargetName]
+    monitorNames = fmap monitorName $ catMaybes $ fmap monitor targets
+
+    targetNames :: [TargetName]
+    targetNames = fmap name targets
+
+    targetAndMonitorNames :: Set TargetName
+    targetAndMonitorNames = Set.fromList (targetNames ++ monitorNames)
+
     allDependencies :: Set TargetName
-    allDependencies = Set.fromList $ concat $
-        fmap dependencies targets
+    allDependencies =
+        Set.fromList (concat (map dependencies targets)) `union`
+        Set.fromList (concat (map monitorDependencies (catMaybes (map monitor targets))))
 
 evalStore :: Store -> IO ()
 evalStore (Store _ _) = return ()

@@ -26,12 +26,11 @@ library
     , enclosed-exceptions
   exposed-modules:
       Kraken
+      Kraken.ActionM
       Kraken.Dot
       Kraken.Graph
-      Kraken.ActionM
-      Kraken.Util
-  other-modules:
       Kraken.Store
+      Kraken.Util
   default-language:
       Haskell2010
   ghc-options:
