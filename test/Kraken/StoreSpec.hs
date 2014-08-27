@@ -17,7 +17,13 @@ spec = do
 
     describe "checkStore" $ do
         it "complains about monitors with non-existing dependencies" $ do
-          let result = checkStore $
-                  Target "t" [] (return ()) (Just (Monitor "m" ["foo"] (const (return ())))) :
-                  []
-          fmap (const ()) result `shouldBe` Left "target dependencies cannot be found: foo"
+            let result = checkStore $
+                    Target "t" [] (return ()) (Just (Monitor "m" ["foo"] (const (return ())))) :
+                    []
+            fmap (const ()) result `shouldBe` Left "target dependencies cannot be found: foo"
+
+        it "complains about monitors depending on themselves" $ do
+            let result = checkStore $
+                    Target "t" [] (return ()) (Just (Monitor "m" ["m"] (const (return ())))) :
+                    []
+            fmap (const ()) result `shouldBe` Left "cycles in target graph:\nm\n"
