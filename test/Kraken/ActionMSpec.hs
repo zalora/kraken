@@ -100,6 +100,12 @@ spec = do
                 cancel "bar"
             result `shouldBe` Left [Error (Just "foo") "bar"]
 
+        it "(isolate . cancel) == logError" $ do
+            let run action = hCapture [stdout, stderr] $ runActionM $ action
+            a <- run (isolate (cancel "foo"))
+            b <- run (logError "foo")
+            a `shouldBe` b
+
         testBatch $ monoid (error "proxy" :: IsolatedTargetM)
 
     context "monitors" $ do
