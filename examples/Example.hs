@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Example where
 
 
 import           Control.Monad
@@ -32,34 +32,31 @@ targets =
 -- | Creates the file foo with some contents in it.
 foo :: [Target]
 foo =
-  fileMonitor "foo" :
-  Target "foo" [] (Just "foo.monitor") (liftIO $ writeFile "foo" "hello") :
+  Target "foo" [] (liftIO $ writeFile "foo" "hello") (Just $ fileMonitor "foo") :
   []
 
 -- | Creates the file oof that contains the contents of foo reversed.
 -- It depends on Target foo.
 oof :: [Target]
 oof =
-  fileMonitor "oof" :
-  Target "oof" ["foo"] (Just "oof.monitor")
+  Target "oof" ["foo"]
     -- File 'foo' should exist, because Target 'oof' depends on Target 'foo'.
-    (liftIO (readFile "foo" >>= writeFile "oof" . reverse)) :
+    (liftIO (readFile "foo" >>= writeFile "oof" . reverse)) (Just $ fileMonitor "oof") :
   []
 
 -- | This is a Target that fails to create the file it's meant to create.
 -- This will be caught by the supplied monitor when trying to execute the Target.
 failingTarget :: [Target]
 failingTarget =
-  fileMonitor "does_not_exist" :
-  Target "failingTarget" [] (Just "does_not_exist.monitor") (return ()) :
+  Target "failingTarget" [] (return ()) (Just $ fileMonitor "does_not_exist") :
   []
 
 -- | Checks whether the given file exists.
-fileMonitor :: FilePath -> Target
-fileMonitor file = Target (fromString (file ++ ".monitor")) [] Nothing $ do
-  exists <- liftIO $ doesFileExist file
+fileMonitor :: FilePath -> Monitor
+fileMonitor file = Monitor (fromString (file ++ ".monitor")) [] $ \ memoizedExists -> do
+  exists <- memoizeMonitorInput memoizedExists $ liftIO $ doesFileExist file
   when (not exists) $ do
     -- If the file does not exist 'abort' is used to indicate
     -- that the monitor failed. The associated Target should
     -- be run to create the file.
-    abort ("file " ++ file ++ " does not exist")
+    outOfDate ("file " ++ file ++ " does not exist") True
