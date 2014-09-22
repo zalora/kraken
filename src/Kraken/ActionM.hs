@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveFunctor, FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, FlexibleInstances,
+             GeneralizedNewtypeDeriving, MultiParamTypeClasses,
+             ScopedTypeVariables #-}
 
 module Kraken.ActionM (
     TargetName(..),
@@ -37,6 +38,7 @@ import           Control.Monad.State        (StateT, get, put, runStateT)
 import           Control.Monad.Trans.Either
 import           Data.Monoid
 import           Data.String
+import           Data.Typeable
 
 import           Kraken.Util
 
@@ -124,7 +126,23 @@ runActionM action = do
 -- can be raised by 'cancel' and 'outOfDate'.
 withTargetName :: TargetName -> ActionM monitorInput a -> ActionM monitorInput a
 withTargetName name (ActionM action) =
-    ActionM $ local (const $ Just name) action
+    mapExceptions (ExceptionWithTargetName name) $
+        ActionM $ local (const $ Just name) action
+
+-- | Helper type to add the current target name to thrown exceptions.
+data ExceptionWithTargetName = ExceptionWithTargetName TargetName E.SomeException
+    deriving (Typeable)
+
+instance Show ExceptionWithTargetName where
+    show (ExceptionWithTargetName _ e) = show e
+
+instance E.Exception ExceptionWithTargetName
+
+-- | Extracts the added target name from an exception, if any.
+extractTargetName :: E.SomeException -> Maybe TargetName
+extractTargetName (E.SomeException e) = case cast e of
+    Just (ExceptionWithTargetName targetName _) -> Just targetName
+    Nothing -> Nothing
 
 
 -- | Issues an error. The error will
@@ -147,7 +165,7 @@ isolate action = do
     result <- liftIO $ catchAny
         (runActionM ((maybe id withTargetName currentTarget) action))
         (\ e -> do
-            let error = Error currentTarget (show e)
+            let error = Error (extractTargetName e) (show e)
             logMessage $ showError error
             return $ Left [error])
     case result of

@@ -35,6 +35,17 @@ spec = do
             Left result <- runActionM (withTargetName "fooTarget" $ cancel "bar")
             concatMap showError result `shouldContain` "fooTarget"
 
+        context "works in conjunction with Exceptions converted to lefts through isolate" $ do
+            it "works when wrapping isolate" $ do
+                Left result <- runActionM $ withTargetName "target name" $ isolate $ do
+                    liftIO $ throwIO $ ErrorCall "error message"
+                result `shouldBe` [Error (Just "target name") "error message"]
+
+            it "works when being wrapped by isolate" $ do
+                Left result <- runActionM $ isolate $ withTargetName "target name" $ do
+                    liftIO $ throwIO $ ErrorCall "error message"
+                result `shouldBe` [Error (Just "target name") "error message"]
+
     describe "logError" $ do
 
         it "writes errors to stderr" $ do
