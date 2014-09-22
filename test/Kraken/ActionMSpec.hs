@@ -17,7 +17,6 @@ import           Test.Hspec.Checkers
 import           Test.QuickCheck
 import           Test.QuickCheck.Checkers
 import           Test.QuickCheck.Classes
-import           Test.QuickCheck.Property (morallyDubiousIOProperty)
 
 import           Kraken.ActionM
 import           Kraken.Util
@@ -227,11 +226,11 @@ instance Monoid IsolatedTargetM where
     mappend = (:>>)
 
 instance EqProp IsolatedTargetM where
-    a =-= b = morallyDubiousIOProperty $ do
+    a =-= b = ioProperty $ do
       resultA <- hCapture [stdout, stderr] $ runActionM $ unwrap a
       resultB <- hCapture [stdout, stderr] $ runActionM $ unwrap b
       return $
-          printTestCase (show resultA ++ "\n/=\n" ++ show resultB) $
+          counterexample (show resultA ++ "\n/=\n" ++ show resultB) $
           resultA == resultB
 
 instance Arbitrary IsolatedTargetM where
