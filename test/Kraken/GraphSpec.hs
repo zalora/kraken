@@ -141,7 +141,7 @@ spec = do
 
         it "always returns abbreviations that end in a dot" $ do
             property $ \ prefixes ->
-                printTestCase (show $ mapPrefixes prefixes) $
+                counterexample (show $ mapPrefixes prefixes) $
                 all (\ p -> p == "" || last p == '.')
                   (fmap snd $ mapPrefixes prefixes)
 
@@ -157,7 +157,7 @@ unique :: (Show a, Eq a) => [a] -> Property
 unique list = case filter (\ e -> length (filter (== e) list) > 1) list of
   [] -> property True
   doubles ->
-    printTestCase (show list ++ " containes these elements more than once: " ++ show doubles) $
+    counterexample (show list ++ " containes these elements more than once: " ++ show doubles) $
     False
 
 

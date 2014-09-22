@@ -55,7 +55,7 @@ test-suite krakenspec
     , hspec >= 1.5
     , interpolate
     , process
-    , QuickCheck == 2.6
+    , QuickCheck >= 2.7
     , quickcheck-instances
     , silently
     , transformers
