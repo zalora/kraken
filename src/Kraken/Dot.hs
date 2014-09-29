@@ -22,6 +22,7 @@ import           Kraken.Util
 toDot :: Bool -> Maybe [String] -> Bool -> [Target] -> String
 toDot withMonitors prefixes transitiveReductionFlag targets = unlines $
     "digraph targets {" :
+    "    rankdir = RL;" :
     fmap ("    " ++) (targetsToEdges withMonitors processedGraph) ++
     "}" :
     []

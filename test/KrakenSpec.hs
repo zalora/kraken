@@ -248,6 +248,7 @@ spec = do
                 ]
           (unwords . words <$> capture_ (runAsMain store)) `shouldReturn` unwords [
               "digraph targets {"
+            , "rankdir = RL;"
             , "\"bar\""
             , "[shape = oval];"
             , "\"foo\""
