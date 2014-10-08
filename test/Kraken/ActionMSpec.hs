@@ -201,7 +201,7 @@ mockStateful actions = do
         action i
 
 
--- | Deeply embedded DSL for (a subset of) TargetM ().
+-- | Deeply embedded DSL for (a subset of) ActionM ().
 data IsolatedTargetM
     = Cancel String
     | ReturnUnit
