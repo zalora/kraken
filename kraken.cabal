@@ -14,21 +14,28 @@ library
       src
   build-depends:
       base == 4.*
-    , transformers
-    , mtl
-    , text
+    , aeson
     , containers
     , either
-    , optparse-applicative
-    , interpolate
-    , graph-wrapper
-    , safe
     , enclosed-exceptions
+    , graph-wrapper
+    , http-types
+    , interpolate
+    , mtl
+    , optparse-applicative
+    , safe
+    , text
+    , transformers
+    , wai
+    , wai-extra
+    , warp
   exposed-modules:
       Kraken
       Kraken.ActionM
+      Kraken.Daemon
       Kraken.Dot
       Kraken.Graph
+      Kraken.Run
       Kraken.Store
       Kraken.Util
   default-language:
@@ -50,17 +57,23 @@ test-suite krakenspec
       Spec.hs
   build-depends:
       base == 4.*
-    , kraken
+    , aeson
+    , checkers
+    , containers
+    , deepseq
+    , directory
     , graph-wrapper
-    , hspec >= 1.5
+    , hspec2
+    , hspec-wai
+    , http-client
+    , http-types
+    , HUnit
     , interpolate
+    , kraken
     , process
     , QuickCheck >= 2.7
     , quickcheck-instances
     , silently
+    , string-conversions
     , transformers
-    , containers
-    , HUnit
-    , checkers
-    , deepseq
-    , directory
+    , wai-extra

@@ -5,9 +5,10 @@ module Kraken.DotSpec where
 
 import           Control.DeepSeq
 import           Test.Hspec
+import           Test.QuickCheck
 
-import           Kraken
 import           Kraken.Dot
+import           Kraken.Graph
 
 
 main :: IO ()
@@ -22,3 +23,21 @@ spec = do
             Target "p.b" [] (return ()) Nothing :
             []
       deepseq result () `shouldBe` ()
+
+  describe "mapPrefixes" $ do
+    it "always returns unique abbreviations" $ do
+      property $ \ prefixes ->
+        unique (fmap snd (mapPrefixes prefixes))
+
+    it "always returns abbreviations that end in a dot" $ do
+      property $ \ prefixes ->
+        counterexample (show $ mapPrefixes prefixes) $
+          all (\ p -> p == "" || last p == '.')
+              (fmap snd $ mapPrefixes prefixes)
+
+unique :: (Show a, Eq a) => [a] -> Property
+unique list = case filter (\ e -> length (filter (== e) list) > 1) list of
+  [] -> property True
+  doubles ->
+    counterexample (show list ++ " containes these elements more than once: " ++ show doubles) $
+    False

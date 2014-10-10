@@ -14,7 +14,6 @@ import           System.Process
 import           Test.Hspec
 import           Test.QuickCheck
 
-import           Kraken.Dot
 import           Kraken.Graph
 
 
@@ -134,31 +133,12 @@ spec = do
                     (transitiveHull (removeEdge e reduction))
                     (transitiveHull reduction)
 
-    describe "mapPrefixes" $ do
-        it "always returns unique abbreviations" $ do
-            property $ \ prefixes ->
-                unique (fmap snd (mapPrefixes prefixes))
-
-        it "always returns abbreviations that end in a dot" $ do
-            property $ \ prefixes ->
-                counterexample (show $ mapPrefixes prefixes) $
-                all (\ p -> p == "" || last p == '.')
-                  (fmap snd $ mapPrefixes prefixes)
-
     describe "toGraph" $ do
         it "includes the monitors in the store as normal targets" $ do
             let Right g = toGraph $
                     Target "target" [] (return ()) (Just (Monitor "monitor" [] (const (return ())))) :
                     []
             vertices g `shouldContain` ["monitor"]
-
-
-unique :: (Show a, Eq a) => [a] -> Property
-unique list = case filter (\ e -> length (filter (== e) list) > 1) list of
-  [] -> property True
-  doubles ->
-    counterexample (show list ++ " containes these elements more than once: " ++ show doubles) $
-    False
 
 
 dumpDotFiles :: [(String, Graph Int ())] -> IO ()
