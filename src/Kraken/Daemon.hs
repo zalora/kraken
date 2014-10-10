@@ -9,12 +9,22 @@ import           Data.Graph.Wrapper
 import           Data.Maybe
 import           Network.HTTP.Types
 import           Network.Wai
+import           Network.Wai.Handler.Warp
 import           Network.Wai.UrlMap
+import           System.IO
 
 import           Kraken.ActionM
 import           Kraken.Graph
 import           Kraken.Store
 
+
+runDaemon :: Port -> Store -> IO ()
+runDaemon port store = runSettings settings (daemon store)
+  where
+    settings =
+      setPort port $
+      setBeforeMainLoop (hPutStrLn stderr ("listening on port " ++ show port)) $
+      defaultSettings
 
 daemon :: Store -> Application
 daemon store = mapUrls $

@@ -14,6 +14,8 @@ import           Network.HTTP.Types
 import           Network.Wai.Test
 import           System.Environment
 import           System.Exit
+import           System.IO
+import           System.IO.Silently
 import           Test.Hspec
 import           Test.Hspec.Wai
 
@@ -59,6 +61,15 @@ spec = do
         response `shouldContain` "foo"
         response `shouldContain` "bar"
         killThread threadId
+
+    it "prints the port to stderr when started" $ do
+      output <- hCapture_ [stderr] $ do
+        threadId <- forkIO $
+          withArgs ["daemon", "--port", show port] $
+          Kraken.runAsMain "test program" store
+        threadDelay 100000
+        killThread threadId
+      output `shouldContain` show port
 
   describe "daemon application" $ appSpec
 

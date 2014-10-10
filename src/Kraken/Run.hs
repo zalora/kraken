@@ -62,7 +62,7 @@ runStore store opts = case opts of
         graph store
     Dot _ withMonitors prefixes transitiveReduction ->
         putStr $ toDot withMonitors prefixes transitiveReduction $ originalTargets store
-    Daemon _ port -> run port (daemon store)
+    Daemon _ port -> runDaemon port store
   where
     reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
