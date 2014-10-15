@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, FlexibleInstances,
-             GeneralizedNewtypeDeriving, MultiParamTypeClasses,
-             ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric,
+             FlexibleInstances, GeneralizedNewtypeDeriving,
+             MultiParamTypeClasses, ScopedTypeVariables #-}
 
 module Kraken.ActionM (
     TargetName(..),
@@ -39,12 +39,13 @@ import           Control.Monad.Trans.Either
 import           Data.Monoid
 import           Data.String
 import           Data.Typeable
+import           GHC.Generics
 
 import           Kraken.Util
 
 
 newtype TargetName = TargetName String
-  deriving (Eq, Ord, IsString, Monoid)
+  deriving (Eq, Ord, IsString, Monoid, Generic)
 
 instance Show TargetName where
     show (TargetName n) = n

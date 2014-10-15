@@ -15,20 +15,26 @@ library
   build-depends:
       base == 4.*
     , aeson
+    , bytestring
     , containers
     , either
     , enclosed-exceptions
     , graph-wrapper
+    , http-client
     , http-types
     , interpolate
     , mtl
+    , network
     , optparse-applicative
+    , process
     , safe
+    , string-conversions
     , text
     , transformers
     , wai
     , wai-extra
     , warp
+    , yaml
   exposed-modules:
       Kraken
       Kraken.ActionM
@@ -38,6 +44,40 @@ library
       Kraken.Run
       Kraken.Store
       Kraken.Util
+      Kraken.Web
+      Kraken.Web.Config
+      Kraken.Web.TargetGraph
+  default-language:
+      Haskell2010
+  ghc-options:
+      -Wall -fno-warn-name-shadowing
+      -threaded
+
+executable kraken-web
+  main-is: Kraken/Web/Main.hs
+  hs-source-dirs:
+    src
+  build-depends:
+      base
+    , aeson
+    , bytestring
+    , either
+    , enclosed-exceptions
+    , graph-wrapper
+    , http-client
+    , http-types
+    , interpolate
+    , mtl
+    , network
+    , optparse-applicative
+    , process
+    , safe
+    , string-conversions
+    , transformers
+    , wai
+    , wai-extra
+    , warp
+    , yaml
   default-language:
       Haskell2010
   ghc-options:
@@ -49,6 +89,8 @@ test-suite krakenspec
       exitcode-stdio-1.0
   ghc-options:
       -Wall -fno-warn-name-shadowing
+      -threaded
+      -O0
   default-language:
       Haskell2010
   hs-source-dirs:
@@ -70,10 +112,14 @@ test-suite krakenspec
     , HUnit
     , interpolate
     , kraken
+    , network
     , process
     , QuickCheck >= 2.7
     , quickcheck-instances
+    , safe
     , silently
     , string-conversions
+    , temporary
     , transformers
     , wai-extra
+    , warp

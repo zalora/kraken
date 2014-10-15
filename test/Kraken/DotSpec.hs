@@ -4,9 +4,11 @@ module Kraken.DotSpec where
 
 
 import           Control.DeepSeq
+import           Data.Graph.Wrapper
 import           Test.Hspec
 import           Test.QuickCheck
 
+import           Kraken.ActionM
 import           Kraken.Dot
 import           Kraken.Graph
 
@@ -14,11 +16,14 @@ import           Kraken.Graph
 main :: IO ()
 main = hspec spec
 
+toGraph' :: [Target] -> Graph TargetName DotNode
+toGraph' = fmap Kraken.Dot.fromNode . either error id . toGraph
+
 spec :: Spec
 spec = do
   describe "toDot" $ do
     it "correctly handles monitors with prefixes" $ do
-      let result = toDot False (Just ["p."]) False $
+      let result = toDot False (Just ["p."]) False $ toGraph' $
             Target "p.a" [] (return ()) (Just $ Monitor "p.m" ["p.b"] (const (return ()))) :
             Target "p.b" [] (return ()) Nothing :
             []

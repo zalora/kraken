@@ -61,7 +61,8 @@ runStore store opts = case opts of
         reverse $ topologicalSort $
         graph store
     Dot _ withMonitors prefixes transitiveReduction ->
-        putStr $ toDot withMonitors prefixes transitiveReduction $ originalTargets store
+        putStr $ toDot withMonitors prefixes transitiveReduction $
+          fmap Kraken.Dot.fromNode $ graph store
     Daemon _ port -> runDaemon port store
   where
     reportAndExit :: [Error] -> IO ()

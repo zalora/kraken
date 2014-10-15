@@ -20,9 +20,7 @@ import           Kraken.Graph
 data Store = Store {
     -- the graph does not only store the direct given dependencies
     -- but also the dependencies from the given monitor for each target.
-    graph :: Graph TargetName Node,
-    -- the original targets (needed by Kraken.Graph.toDot)
-    originalTargets :: [Target]
+    graph :: Graph TargetName Node
   }
 
 -- | smart constructor for Store
@@ -36,8 +34,7 @@ checkStore :: [Target] -> Either String Store
 checkStore targets = do
     checkUniqueTargetNames
     checkDependencies
-    graph <- toGraph targets
-    return $ Store graph targets
+    Store <$> toGraph targets
   where
     checkUniqueTargetNames =
         case filter (\ g -> length g > 1) (group (sort (targetNames ++ monitorNames))) of
@@ -67,7 +64,7 @@ checkStore targets = do
         Set.fromList (concat (map monitorDependencies (catMaybes (map monitor targets))))
 
 evalStore :: Store -> IO ()
-evalStore (Store _ _) = return ()
+evalStore (Store _) = return ()
 
 
 data TargetList

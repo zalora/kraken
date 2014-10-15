@@ -5,17 +5,14 @@ module Kraken.Daemon where
 
 
 import           Data.Aeson
-import           Data.Graph.Wrapper
-import           Data.Maybe
 import           Network.HTTP.Types
 import           Network.Wai
 import           Network.Wai.Handler.Warp
 import           Network.Wai.UrlMap
 import           System.IO
 
-import           Kraken.ActionM
-import           Kraken.Graph
 import           Kraken.Store
+import           Kraken.Web.TargetGraph
 
 
 runDaemon :: Port -> Store -> IO ()
@@ -40,14 +37,4 @@ jsonApplication app request respond =
 
 targetGraph :: Store -> JsonApplication
 targetGraph store _ respond = do
-  respond (toJSON (graph store))
-
-instance ToJSON (Graph TargetName Node) where
-  toJSON graph = object ["targetGraph" .= map nodeToValue (toList graph)]
-
-nodeToValue :: (TargetName, Node, [TargetName]) -> Value
-nodeToValue (name, node, dependencies) = object $
-  "name" .= show name :
-  "dependencies" .= map show dependencies :
-  "hasMonitor" .= isJust (monitor node) :
-  []
+  respond (toJSON (toTargetGraph $ graph store))
