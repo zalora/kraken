@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, ExistentialQuantification, GADTs, QuasiQuotes #-}
+{-# LANGUAGE DeriveFunctor, GADTs, QuasiQuotes #-}
 
 module Kraken.Graph (
     TargetPoly(..),
