@@ -189,7 +189,7 @@ options description customParser =
 
     targetList :: Parser TargetList
     targetList = toTargetList <$>
-         some (argument Just $
+         some (strArgument $
             metavar "TARGETS/PREFIXES" <>
             help "command line arguments specify targets (or prefixes) to be run (or \"all\")")
     toTargetList :: [String] -> TargetList

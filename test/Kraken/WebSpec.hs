@@ -60,7 +60,7 @@ spec =
     describe "kraken-web" $ do
       it "returns the targetGraph as dot" $ do
         response <- get "/targetGraph.dot"
-        return response `shouldRespondWith` 200{matchHeaders = [("Content-Type", "text/vnd.graphviz")]}
+        return response `shouldRespondWith` 200{matchHeaders = [("Content-Type" <:> "text/vnd.graphviz")]}
         liftIO $ do
           let ws = words (cs (simpleBody response))
           ws `shouldContain` ["digraph"]
@@ -68,7 +68,7 @@ spec =
 
       it "returns the targetGraph as pdf" $ do
         response <- get "/targetGraph.pdf"
-        return response `shouldRespondWith` 200{matchHeaders = [("Content-Type", "application/pdf")]}
+        return response `shouldRespondWith` 200{matchHeaders = [("Content-Type" <:> "application/pdf")]}
         liftIO $ do
           fileResult <- readProcess "file" ["-"] (cs $ simpleBody response)
           fileResult `shouldContain` "PDF"

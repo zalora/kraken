@@ -9,6 +9,10 @@ category:         Database
 build-type:       Simple
 cabal-version:    >= 1.10
 
+flag network-uri
+   description: Get Network.URI from the network-uri package
+   default: True
+
 library
   hs-source-dirs:
       src
@@ -24,8 +28,7 @@ library
     , http-types
     , interpolate
     , mtl
-    , network
-    , optparse-applicative
+    , optparse-applicative >= 0.11
     , process
     , safe
     , string-conversions
@@ -35,6 +38,10 @@ library
     , wai-extra
     , warp
     , yaml
+  if flag(network-uri)
+    build-depends: network-uri >= 2.6, network >= 2.6
+  else
+    build-depends: network-uri < 2.6, network < 2.6
   exposed-modules:
       Kraken
       Kraken.ActionM
@@ -68,8 +75,7 @@ executable kraken-web
     , http-types
     , interpolate
     , mtl
-    , network
-    , optparse-applicative
+    , optparse-applicative >= 0.11
     , process
     , safe
     , string-conversions
@@ -78,6 +84,10 @@ executable kraken-web
     , wai-extra
     , warp
     , yaml
+  if flag(network-uri)
+    build-depends: network-uri >= 2.6, network >= 2.6
+  else
+    build-depends: network-uri < 2.6, network < 2.6
   default-language:
       Haskell2010
   ghc-options:
@@ -106,13 +116,12 @@ test-suite krakenspec
     , directory
     , graph-wrapper
     , hspec2
-    , hspec-wai
+    , hspec-wai >= 0.5
     , http-client
     , http-types
     , HUnit
     , interpolate
     , kraken
-    , network
     , process
     , QuickCheck >= 2.7
     , quickcheck-instances
@@ -123,3 +132,7 @@ test-suite krakenspec
     , transformers
     , wai-extra
     , warp
+  if flag(network-uri)
+    build-depends: network-uri >= 2.6, network >= 2.6
+  else
+    build-depends: network-uri < 2.6, network < 2.6
