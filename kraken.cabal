@@ -21,6 +21,7 @@ library
     , aeson
     , bytestring
     , containers
+    , directory
     , either
     , enclosed-exceptions
     , graph-wrapper
@@ -69,6 +70,7 @@ executable kraken-web
       base
     , aeson
     , bytestring
+    , directory
     , either
     , enclosed-exceptions
     , graph-wrapper
