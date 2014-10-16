@@ -27,7 +27,6 @@ import           Kraken.Util
 
 
 data DotNode = DotNode {
-  name :: TargetName,
   monitor :: Maybe TargetName
  }
 
@@ -35,12 +34,12 @@ data DotNode = DotNode {
 -- * conversions from other types
 
 fromNode :: Kraken.Graph.Node -> DotNode
-fromNode (Kraken.Graph.Target name _deps _action monitor) =
-  DotNode name (fmap Kraken.Graph.monitorName monitor)
+fromNode (Kraken.Graph.Target _name _deps _action monitor) =
+  DotNode (fmap Kraken.Graph.monitorName monitor)
 
 fromWebNode :: Web.WebNode -> DotNode
-fromWebNode (Web.WebNode name monitor) =
-  DotNode name monitor
+fromWebNode (Web.WebNode _name monitor) =
+  DotNode monitor
 
 
 -- * conversion to dot
@@ -64,10 +63,9 @@ filterByPrefix (Just (mapPrefixes -> prefixes)) =
     -- filter out nodes
     List.filter (hasPrefix . fst3) >>>
     -- filter out deps by prefix (including monitors)
-    fmap (\ (index, DotNode name monitor, deps) ->
-      (dropPrefix index,
-       DotNode (dropPrefix name)
-         (maybe Nothing dropPrefixesFromMonitor monitor),
+    fmap (\ (name, DotNode monitor, deps) ->
+      (dropPrefix name,
+       DotNode (maybe Nothing dropPrefixesFromMonitor monitor),
        (fmap dropPrefix $ List.filter hasPrefix deps))) >>>
     Graph.fromList
 
@@ -101,7 +99,7 @@ mapPrefixes (nub -> prefixes) =
 targetsToEdges :: Bool -> Graph TargetName DotNode -> [String]
 targetsToEdges withMonitors graph =
     concat $ for targets $ \ target ->
-        targetEdges withMonitors graph (vertex graph target)
+        targetEdges withMonitors graph (target, vertex graph target)
   where
     targets :: [TargetName]
     targets =
@@ -110,23 +108,23 @@ targetsToEdges withMonitors graph =
     monitors :: [TargetName]
     monitors = catMaybes $ fmap monitor $ Foldable.toList graph
 
-targetEdges :: Bool -> Graph TargetName DotNode -> DotNode -> [String]
-targetEdges withMonitors graph node =
-    [i|"#{name node}" [shape = #{nodeShape}];|] :
-    (fmap (mkEdge "black" node) dependencies) ++
+targetEdges :: Bool -> Graph TargetName DotNode -> (TargetName, DotNode) -> [String]
+targetEdges withMonitors graph (name, node) =
+    [i|"#{name}" [shape = #{nodeShape}];|] :
+    (fmap (mkEdge "black" name) dependencies) ++
     if withMonitors then
         maybe [] (\ monitorName ->
             [i|"#{monitorName}" [color = "blue"];|] :
-            (mkEdge "blue" node monitorName ++ " // monitor_edge") : [])
+            (mkEdge "blue" name monitorName ++ " // monitor_edge") : [])
             (monitor node)
       else []
   where
     nodeShape = maybe "oval" (const "box") (monitor node)
-    dependencies = successors graph (name node)
+    dependencies = successors graph name
 
-mkEdge :: String -> DotNode -> TargetName -> String
+mkEdge :: String -> TargetName -> TargetName -> String
 mkEdge color a b =
-    [i|"#{name a}" -> "#{b}" [color = "#{color}"];|]
+    [i|"#{a}" -> "#{b}" [color = "#{color}"];|]
 
 
 -- * utils
