@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, ExistentialQuantification, QuasiQuotes #-}
+{-# LANGUAGE DeriveFunctor, ExistentialQuantification, GADTs, QuasiQuotes #-}
 
 module Kraken.Graph (
     TargetPoly(..),
@@ -38,11 +38,12 @@ data TargetPoly dependencies = Target {
 type Target = TargetPoly [TargetName]
 
 
-data MonitorPoly dependencies = forall monitorInput . Monitor {
-    monitorName :: TargetName,
-    monitorDependencies :: dependencies,
-    monitorAction :: (Maybe monitorInput -> MonitorM monitorInput ())
-  }
+data MonitorPoly dependencies where
+  Monitor :: {
+      monitorName :: TargetName,
+      monitorDependencies :: dependencies,
+      monitorAction :: (Maybe monitorInput -> MonitorM monitorInput ())
+    } -> MonitorPoly dependencies
 
 type Monitor = MonitorPoly [TargetName]
 
