@@ -4,10 +4,8 @@ module Kraken (
     module Kraken.Store,
     module Kraken.Run,
 
-    TargetPoly(..),
-    Target,
-    MonitorPoly(..),
-    Monitor,
+    Target(..),
+    Monitor(..),
 
     logMessageLn,
     logMessage,

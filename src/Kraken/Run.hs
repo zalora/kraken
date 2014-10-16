@@ -84,16 +84,16 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
     executionPlan <- lookupExecutionPlan store dontChaseDependencies targets
     logMessage . unlines $
         "execution plan:" :
-        (fmap (("    " ++) . show . name) executionPlan)
+        (fmap (("    " ++) . show . nodeName) executionPlan)
     when (not dryRun) $ do
         doneTargets <- liftIO $ newMVar Set.empty
         forM_ executionPlan $ \ node -> do
             done <- liftIO $ readMVar doneTargets
-            let dependencies = lookupDependencies store (name node)
+            let dependencies = lookupDependencies store (nodeName node)
             when (all (`Set.member` done) dependencies || dontChaseDependencies) $ do
                 isolateM $ do
                     runTargetWithMonitor omitMonitors node
-                    liftIO $ modifyMVar_ doneTargets (return . insert (name node))
+                    liftIO $ modifyMVar_ doneTargets (return . insert (nodeName node))
   where
     isolateM = if failFast then id else isolate
 
@@ -109,13 +109,13 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
 -- 3. Run the monitor again. If any errors occur, stop and report them. If no
 --    errors occur than the target was created successfully.
 runTargetWithMonitor :: Bool -> Node -> TargetM ()
-runTargetWithMonitor _omitMonitors target@Target{monitor = Nothing} =
+runTargetWithMonitor _omitMonitors target@Node{nodeMonitor = Nothing} =
     runTarget target
 runTargetWithMonitor True target =
     runTarget target
-runTargetWithMonitor False target@Target{monitor = Just (Monitor monitorName () monitorAction)} =
-  withTargetName (name target) $ do
-    logMessageLn [i|running monitor for #{name target}|]
+runTargetWithMonitor False target@Node{nodeMonitor = Just (NodeMonitor monitorName monitorAction)} =
+  withTargetName (nodeName target) $ do
+    logMessageLn [i|running monitor for #{nodeName target}|]
 
     bracketWithMonitor
         (\ monitorInput -> withTargetName monitorName (monitorAction monitorInput))
@@ -124,9 +124,9 @@ runTargetWithMonitor False target@Target{monitor = Just (Monitor monitorName () 
 
 -- | Runs the target ignoring dependencies and monitors.
 runTarget :: Node -> TargetM ()
-runTarget target = withTargetName (name target) $ do
-    logMessageLn [i|running target #{name target}|]
-    action target
+runTarget target = withTargetName (nodeName target) $ do
+    logMessageLn [i|running target #{nodeName target}|]
+    nodeAction target
 
 
 -- * cli options

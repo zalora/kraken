@@ -73,9 +73,9 @@ data TargetList
   deriving (Show)
 
 lookupTargets :: Store -> Bool -> TargetList -> TargetM [TargetName]
-lookupTargets store _ AllTargets = return $ map name $ toList $ graph store
+lookupTargets store _ AllTargets = return $ map nodeName $ toList $ graph store
 lookupTargets store useAsPrefix (SelectedTargets names) =
-    map name <$>
+    map nodeName <$>
     concat <$>
     (forM names $ \ needle ->
      case filter (pred needle) (toList $ graph store) of
@@ -88,12 +88,12 @@ lookupTargets store useAsPrefix (SelectedTargets names) =
     -- whether to include a given Target
     pred :: TargetName -> Node -> Bool
     pred needle t = if useAsPrefix
-        then show needle `isPrefixOf` show (name t)
-        else name t == needle
+        then show needle `isPrefixOf` show (nodeName t)
+        else nodeName t == needle
 
 lookupTarget :: Store -> TargetName -> TargetM Node
 lookupTarget store targetName =
-    case filter (\ t -> name t == targetName) (toList $ graph store) of
+    case filter (\ t -> nodeName t == targetName) (toList $ graph store) of
         [a] -> return a
         _ -> cancel [i|unable to look up target: #{targetName}|]
 
@@ -109,7 +109,7 @@ lookupExecutionPlan store _dontChaseDependencies@False targets = do
 lookupDependencies :: Store -> TargetName -> [TargetName]
 lookupDependencies store target =
     filter (/= target) $
-    foldDependencies ((++), []) store [target] (\ node -> [name node])
+    foldDependencies ((++), []) store [target] (\ node -> [nodeName node])
 
 -- The first argument is morally a Monoid instance constraint. But for some of the
 -- contexts this is used in, there would be multiple possible Monoid instances
@@ -118,7 +118,7 @@ lookupDependencies store target =
 foldDependencies :: (a -> a -> a, a) -> Store -> [TargetName] -> (Node -> a) -> a
 foldDependencies monoid@(_, mempty) store targets f =
   foldTopologically monoid store $ \ node ->
-    if name node `Set.member` reachable
+    if nodeName node `Set.member` reachable
       then f node
       else mempty
  where

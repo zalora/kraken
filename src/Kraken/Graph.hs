@@ -1,14 +1,14 @@
 {-# LANGUAGE DeriveFunctor, GADTs, QuasiQuotes #-}
 
 module Kraken.Graph (
-    TargetPoly(..),
-    Target,
-    MonitorPoly(..),
-    Monitor,
+    Target(..),
+    Monitor(..),
 
-    Node,
+    Node(..),
+    NodeMonitor(..),
     toNode,
     toGraph,
+
     transitiveReduction,
     transitiveHull,
     reachableVerticesWithoutSelf,
@@ -25,43 +25,47 @@ import           Kraken.Util
 
 
 -- | Type representing targets.
-data TargetPoly dependencies = Target {
+data Target = Target {
     name :: TargetName,
-    dependencies :: dependencies,
+    dependencies :: [TargetName],
     action :: TargetM (),
-    monitor :: Maybe (MonitorPoly dependencies)
+    monitor :: Maybe Monitor
   }
-    deriving (Functor)
 
--- | Target type that still contains its dependencies. Users of kraken use this
--- type to specify their targets.
-type Target = TargetPoly [TargetName]
-
-
-data MonitorPoly dependencies where
+data Monitor where
   Monitor :: {
       monitorName :: TargetName,
-      monitorDependencies :: dependencies,
-      monitorAction :: (Maybe monitorInput -> MonitorM monitorInput ())
-    } -> MonitorPoly dependencies
-
-type Monitor = MonitorPoly [TargetName]
-
-instance Functor MonitorPoly where
-    fmap f (Monitor name deps action) = Monitor name (f deps) action
+      monitorDependencies :: [TargetName],
+      monitorAction :: Maybe monitorInput -> MonitorM monitorInput ()
+    } -> Monitor
 
 
 -- | Node type for the target graph, stripped of dependencies.
 -- We don't want to store target dependencies redundantly, so this is
 -- a stripped down version of Kraken.Target.Target.
--- Also the monitors are being inserted into the Node graph as targets,
--- additionally to being stored as monitors for other targets.
-type Node = TargetPoly ()
+data Node = Node {
+    nodeName :: TargetName,
+    nodeAction :: TargetM (),
+    nodeMonitor :: Maybe NodeMonitor
+  }
+
+data NodeMonitor where
+  NodeMonitor :: {
+      nodeMonitorName :: TargetName,
+      nodeMonitorAction :: Maybe monitorInput -> MonitorM monitorInput ()
+    } -> NodeMonitor
 
 toNode :: Target -> Node
-toNode = fmap (const ())
+toNode (Target name _deps action monitor) =
+  Node name action (fmap toNodeMonitor monitor)
+
+toNodeMonitor :: Monitor -> NodeMonitor
+toNodeMonitor (Monitor name _deps action) =
+  NodeMonitor name action
 
 
+-- The monitors are being inserted into the Node graph as targets,
+-- additionally to being stored as monitors for their targets.
 toGraph :: [Target] -> Either String (Graph TargetName Node)
 toGraph targets = do
     let monitorDependencies :: Maybe Monitor -> [TargetName]
@@ -79,7 +83,7 @@ toGraph targets = do
     -- | to be able to use the monitor as a normal target
     monitorToNode :: Monitor -> (TargetName, Node, [TargetName])
     monitorToNode (Monitor name deps action) =
-        (name, Target name () (discardMonitorInput $ action Nothing) Nothing, deps)
+        (name, Node name (discardMonitorInput $ action Nothing) Nothing, deps)
 
     checkAcyclic g = case cycles g of
         [] -> Right ()

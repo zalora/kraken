@@ -21,7 +21,7 @@ data WebNode = WebNode {
 
 toWebNode :: Node -> WebNode
 toWebNode node =
-  WebNode (Kraken.Graph.name node) (fmap monitorName (Kraken.Graph.monitor node))
+  WebNode (Kraken.Graph.nodeName node) (fmap nodeMonitorName (Kraken.Graph.nodeMonitor node))
 
 instance FromJSON WebNode
 instance ToJSON WebNode
