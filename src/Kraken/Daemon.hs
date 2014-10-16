@@ -7,21 +7,15 @@ module Kraken.Daemon where
 import           Data.Aeson
 import           Network.HTTP.Types
 import           Network.Wai
-import           Network.Wai.Handler.Warp
+import           Network.Wai.Handler.Warp.Run
 import           Network.Wai.UrlMap
-import           System.IO
 
 import           Kraken.Store
 import           Kraken.Web.TargetGraph
 
 
 runDaemon :: Port -> Store -> IO ()
-runDaemon port store = runSettings settings (daemon store)
-  where
-    settings =
-      setPort port $
-      setBeforeMainLoop (hPutStrLn stderr ("listening on port " ++ show port)) $
-      defaultSettings
+runDaemon port store = runWarp port (daemon store)
 
 daemon :: Store -> Application
 daemon store = mapUrls $

@@ -22,8 +22,8 @@ import           Safe
 
 import           Kraken.ActionM
 import qualified Kraken.Graph
-import qualified Kraken.Web.TargetGraph as Web
 import           Kraken.Util
+import qualified Kraken.Web.TargetGraph  as Web
 
 
 data DotNode = DotNode {

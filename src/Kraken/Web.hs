@@ -5,22 +5,23 @@ module Kraken.Web where
 
 import           Control.Applicative
 import           Control.Exception
-import           Control.Monad            (when)
+import           Control.Monad                (when)
 import           Data.Aeson
-import           Data.ByteString          (ByteString, hGetContents)
+import           Data.ByteString              (ByteString, hGetContents)
 import           Data.Graph.Wrapper
 import           Data.String.Conversions
-import           Data.Traversable         (forM)
-import           Network.HTTP.Client      as Client hiding (port)
+import           Data.Traversable             (forM)
+import           Network.HTTP.Client          as Client hiding (port)
 import           Network.HTTP.Types
 import           Network.URI
-import           Network.Wai              as Wai
-import qualified Network.Wai.Handler.Warp as Warp
+import           Network.Wai                  as Wai
+import           Network.Wai.Handler.Warp.Run
 import           Network.Wai.UrlMap
 import           System.Exit
 import           System.IO
-import           System.Process           (CreateProcess (..), StdStream (..),
-                                           createProcess, proc, waitForProcess)
+import           System.Process               (CreateProcess (..),
+                                               StdStream (..), createProcess,
+                                               proc, waitForProcess)
 
 import           Kraken.Dot
 import           Kraken.Web.Config
@@ -30,12 +31,7 @@ import           Kraken.Web.TargetGraph
 run :: IO ()
 run = do
   config <- loadConfig
-  let settings =
-        Warp.setPort (port config) $
-        Warp.setBeforeMainLoop
-          (hPutStrLn stderr ("listening on port " ++ show (port config))) $
-        Warp.defaultSettings
-  Warp.runSettings settings =<< application (krakenUris config)
+  runWarp (port config) =<< application (krakenUris config)
 
 application :: [URI] -> IO Application
 application krakenUris = Client.withManager Client.defaultManagerSettings $ \ manager ->

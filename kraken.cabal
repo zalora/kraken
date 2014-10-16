@@ -54,6 +54,7 @@ library
       Kraken.Web
       Kraken.Web.Config
       Kraken.Web.TargetGraph
+      Network.Wai.Handler.Warp.Run
   default-language:
       Haskell2010
   ghc-options:
