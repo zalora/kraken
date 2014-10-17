@@ -38,7 +38,7 @@ spec = do
                 "http://bla.sg/boo" :
                 []
           writeFile "kraken-web.conf" $ cs $ encode config
-          loadConfig `shouldReturn` config
+          withArgs [] loadConfig `shouldReturn` config
 
     it "loads from a file given by --config" $ do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
