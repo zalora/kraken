@@ -14,14 +14,13 @@ import           Kraken.Graph
 
 
 data WebNode = WebNode {
-  name :: TargetName,
   monitor :: Maybe TargetName
  }
   deriving (Generic)
 
 toWebNode :: Node -> WebNode
 toWebNode node =
-  WebNode (Kraken.Graph.nodeName node) (fmap nodeMonitorName (Kraken.Graph.nodeMonitor node))
+  WebNode (fmap nodeMonitorName (Kraken.Graph.nodeMonitor node))
 
 instance FromJSON WebNode
 instance ToJSON WebNode

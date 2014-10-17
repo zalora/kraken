@@ -34,11 +34,11 @@ data DotNode = DotNode {
 -- * conversions from other types
 
 fromNode :: Kraken.Graph.Node -> DotNode
-fromNode (Kraken.Graph.Node _name _action monitor) =
+fromNode (Kraken.Graph.Node _action monitor) =
   DotNode (fmap Kraken.Graph.nodeMonitorName monitor)
 
 fromWebNode :: Web.WebNode -> DotNode
-fromWebNode (Web.WebNode _name monitor) =
+fromWebNode (Web.WebNode monitor) =
   DotNode monitor
 
 

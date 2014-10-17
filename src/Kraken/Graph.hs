@@ -44,7 +44,6 @@ data Monitor where
 -- We don't want to store target dependencies redundantly, so this is
 -- a stripped down version of Kraken.Target.Target.
 data Node = Node {
-    nodeName :: TargetName,
     nodeAction :: TargetM (),
     nodeMonitor :: Maybe NodeMonitor
   }
@@ -56,8 +55,8 @@ data NodeMonitor where
     } -> NodeMonitor
 
 toNode :: Target -> Node
-toNode (Target name _deps action monitor) =
-  Node name action (fmap toNodeMonitor monitor)
+toNode (Target _name _deps action monitor) =
+  Node action (fmap toNodeMonitor monitor)
 
 toNodeMonitor :: Monitor -> NodeMonitor
 toNodeMonitor (Monitor name _deps action) =
@@ -83,7 +82,7 @@ toGraph targets = do
     -- | to be able to use the monitor as a normal target
     monitorToNode :: Monitor -> (TargetName, Node, [TargetName])
     monitorToNode (Monitor name deps action) =
-        (name, Node name (discardMonitorInput $ action Nothing) Nothing, deps)
+        (name, Node (discardMonitorInput $ action Nothing) Nothing, deps)
 
     checkAcyclic g = case cycles g of
         [] -> Right ()

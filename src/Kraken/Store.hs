@@ -2,8 +2,8 @@
 module Kraken.Store where
 
 
-import           Data.Foldable           (toList)
-import           Data.Graph.Wrapper      as Graph hiding (toList)
+import           Data.Foldable           as Foldable (toList)
+import           Data.Graph.Wrapper      as Graph
 import           Data.List               as List (foldl', group, isPrefixOf,
                                                   nub, sort)
 import           Data.Maybe
@@ -47,7 +47,7 @@ checkStore targets = do
             Right ()
         else
             Left ("target dependencies cannot be found: " ++
-                 (unwords $ fmap show $ sort $ toList (allDependencies \\ targetAndMonitorNames)))
+                 (unwords $ fmap show $ sort $ Foldable.toList (allDependencies \\ targetAndMonitorNames)))
 
     monitorNames :: [TargetName]
     monitorNames = fmap monitorName $ catMaybes $ fmap monitor targets
@@ -73,12 +73,11 @@ data TargetList
   deriving (Show)
 
 lookupTargets :: Store -> Bool -> TargetList -> TargetM [TargetName]
-lookupTargets store _ AllTargets = return $ map nodeName $ toList $ graph store
+lookupTargets store _ AllTargets = return $ vertices $ graph store
 lookupTargets store useAsPrefix (SelectedTargets names) =
-    map nodeName <$>
     concat <$>
     (forM names $ \ needle ->
-     case filter (pred needle) (toList $ graph store) of
+     case filter (pred needle) (vertices $ graph store) of
         [target] -> return [target]
         [] -> cancel [i|target not found: #{needle}|]
         targets -> if useAsPrefix
@@ -86,48 +85,49 @@ lookupTargets store useAsPrefix (SelectedTargets names) =
             else cancel [i|multiple targets found for prefix #{needle}|])
   where
     -- whether to include a given Target
-    pred :: TargetName -> Node -> Bool
-    pred needle t = if useAsPrefix
-        then show needle `isPrefixOf` show (nodeName t)
-        else nodeName t == needle
+    pred :: TargetName -> TargetName -> Bool
+    pred needle target = if useAsPrefix
+        then show needle `isPrefixOf` show target
+        else target == needle
 
-lookupTarget :: Store -> TargetName -> TargetM Node
+lookupTarget :: Store -> TargetName -> TargetM (TargetName, Node)
 lookupTarget store targetName =
-    case filter (\ t -> nodeName t == targetName) (toList $ graph store) of
-        [a] -> return a
+    case filter (\ (n, _, _) -> n == targetName) (Graph.toList $ graph store) of
+        [(name, node, _)] -> return (name, node)
         _ -> cancel [i|unable to look up target: #{targetName}|]
 
 -- | returns all targets to be executed for running a given target, i.e.
 -- including dependencies and the given target itself.
-lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM [Node]
+lookupExecutionPlan :: Store -> Bool -> [TargetName] -> TargetM [(TargetName, Node)]
 lookupExecutionPlan store _dontChaseDependencies@True targets =
     mapM (lookupTarget store) targets
 lookupExecutionPlan store _dontChaseDependencies@False targets = do
     mapM_ (lookupTarget store) targets
-    return $ foldDependencies ((++), []) store targets (\ node -> [node])
+    return $ foldDependencies ((++), []) store targets (\ (name, node) -> [(name, node)])
 
 lookupDependencies :: Store -> TargetName -> [TargetName]
 lookupDependencies store target =
     filter (/= target) $
-    foldDependencies ((++), []) store [target] (\ node -> [nodeName node])
+    foldDependencies ((++), []) store [target] (\ (name, _) -> [name])
+
 
 -- The first argument is morally a Monoid instance constraint. But for some of the
 -- contexts this is used in, there would be multiple possible Monoid instances
 -- (e.g. for TargetM). Therefore this function requires the first argument
 -- explicitly to make it a bit clearer what's going on.
-foldDependencies :: (a -> a -> a, a) -> Store -> [TargetName] -> (Node -> a) -> a
+foldDependencies :: (a -> a -> a, a) -> Store -> [TargetName] -> ((TargetName, Node) -> a) -> a
 foldDependencies monoid@(_, mempty) store targets f =
-  foldTopologically monoid store $ \ node ->
-    if nodeName node `Set.member` reachable
-      then f node
+  foldTopologically monoid store $ \ (name, node) ->
+    if name `Set.member` reachable
+      then f (name, node)
       else mempty
  where
   reachable :: Set TargetName
   reachable = Set.fromList $ concatMap (reachableVertices (graph store)) targets
 
-foldTopologically :: forall a . (a -> a -> a, a) -> Store -> (Node -> a) -> a
+foldTopologically :: forall a . (a -> a -> a, a) -> Store -> ((TargetName, Node) -> a) -> a
 foldTopologically ((<>), mempty) store f =
     foldl' inner mempty (reverse $ topologicalSort $ graph store)
   where
     inner :: a -> TargetName -> a
-    inner acc target = acc <> f (vertex (graph store) target)
+    inner acc target = acc <> f (target, (vertex (graph store) target))
