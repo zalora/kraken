@@ -74,7 +74,7 @@ spec = do
   describe "daemon application" $ appSpec
 
 appSpec :: Spec
-appSpec = with (return $ daemon store) $ do
+appSpec = with (daemon store) $ do
     it "returns valid JSON under /targetGraph" $ do
       response <- get "/targetGraph"
       liftIO $ response `shouldSatisfy` isValidJson
@@ -82,5 +82,6 @@ appSpec = with (return $ daemon store) $ do
 isValidJson :: SResponse -> Bool
 isValidJson response =
   simpleStatus response == ok200 &&
-  ("Content-Type", "application/json") `elem` simpleHeaders response &&
+  (("Content-Type", "application/json") `elem` simpleHeaders response ||
+   ("Content-Type", "application/json; charset=utf-8") `elem` simpleHeaders response) &&
   isJust (decode' (simpleBody response) :: Maybe Value)

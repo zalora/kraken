@@ -20,6 +20,7 @@ library
       base == 4.*
     , aeson
     , bytestring
+    , scotty
     , containers
     , directory
     , either
@@ -72,6 +73,7 @@ executable kraken-web
     , bytestring
     , directory
     , either
+    , scotty
     , enclosed-exceptions
     , graph-wrapper
     , http-client

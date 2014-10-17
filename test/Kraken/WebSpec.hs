@@ -49,7 +49,7 @@ withKrakenDaemon action = bracket acquire free (\ (_, _, port) -> action port)
             setPort krakenPort $ -- for consistency, shouldn't be used (it's set in the socket)
             setBeforeMainLoop (notifyStart krakenPort)
             defaultSettings
-      Warp.runSettingsSocket settings socket (daemon store))
+      Warp.runSettingsSocket settings socket =<< daemon store)
             `finally` notifyKilled ()
     krakenPort <- waitForStart
     return (thread, waitForKilled, krakenPort)
@@ -101,6 +101,6 @@ spec =
             not ("2" `isInfixOf` body))
 
         it "allows to set multiple prefixes" $ do
-          response <- get "/targetGraph.dot?prefix=target.&prefix=internalTarget."
+          response <- get "/targetGraph.dot?prefix=target.,internalTarget."
           liftIO $ cs (simpleBody response) `shouldSatisfy` (\ (body :: String) ->
             ("2" `isInfixOf` body))

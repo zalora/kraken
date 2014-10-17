@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
 module Kraken.Web where
 
@@ -6,10 +6,10 @@ module Kraken.Web where
 import           Control.Applicative
 import           Control.Exception
 import           Control.Monad                (when)
+import           Control.Monad.IO.Class
 import           Data.Aeson
 import           Data.ByteString              (ByteString, hGetContents)
 import           Data.Graph.Wrapper
-import           Data.Maybe
 import           Data.String.Conversions
 import           Data.Traversable             (forM)
 import           Network.HTTP.Client          as Client
@@ -17,12 +17,12 @@ import           Network.HTTP.Types
 import           Network.URI
 import           Network.Wai                  as Wai
 import           Network.Wai.Handler.Warp.Run
-import           Network.Wai.UrlMap
 import           System.Exit
 import           System.IO
 import           System.Process               (CreateProcess (..),
                                                StdStream (..), createProcess,
                                                proc, waitForProcess)
+import           Web.Scotty
 
 import           Kraken.Dot
 import           Kraken.Web.Config
@@ -36,34 +36,30 @@ run = do
 
 application :: [URI] -> IO Application
 application krakenUris = Client.withManager Client.defaultManagerSettings $ \ manager ->
-  return $ mapUrls $
-    mount "targetGraph.pdf" (targetGraph krakenUris manager Pdf) <|>
-    mount "targetGraph.dot" (targetGraph krakenUris manager Dot)
+  scottyApp $ do
+    get "/targetGraph.pdf" (targetGraph krakenUris manager Pdf)
+    get "/targetGraph.dot" (targetGraph krakenUris manager Dot)
 
 data FileFormat
   = Dot
   | Pdf
 
-targetGraph :: [URI] -> Manager -> FileFormat -> Application
-targetGraph krakenUris manager fileFormat request respond = do
-  let prefixes =
-        (\ xs -> if null xs then Nothing else Just xs) $
-        map cs $
-        catMaybes $
-        map snd $
-        filter ((== "prefix") . fst) $
-        Wai.queryString request
-  graphParts <- forM krakenUris $ \ uri ->
+targetGraph :: [URI] -> Manager -> FileFormat -> ActionM ()
+targetGraph krakenUris manager fileFormat = do
+  prefixes :: Maybe [String] <- (Just <$> param "prefix") `rescue` (\ _ -> return Nothing)
+  graphParts <- liftIO $ forM krakenUris $ \ uri ->
     getValue manager uri
   let dot = Kraken.Web.toDot prefixes $ mergeGraphs graphParts
   case fileFormat of
     Pdf -> do
-      (exitCode, pdf) <- readProcess "dot" ["-Tpdf"] dot
+      (exitCode, pdf) <- liftIO $ readProcess "dot" ["-Tpdf"] dot
       when (exitCode /= ExitSuccess) $
-        throwIO (ErrorCall ("dot exited with: " ++ show exitCode))
-      respond $ responseLBS ok200 [("Content-Type", "application/pdf")] (cs pdf)
-    Dot ->
-      respond $ responseLBS ok200 [("Content-Type", "text/vnd.graphviz")] (cs dot)
+        raise ("dot exited with: " <> cs (show exitCode))
+      setHeader "Content-Type" "application/pdf"
+      raw (cs pdf)
+    Dot -> do
+      setHeader "Content-Type" "text/vnd.graphviz"
+      raw (cs dot)
 
 -- | Retrieves a value from a kraken daemon.
 getValue :: FromJSON result => Manager -> URI -> IO result
