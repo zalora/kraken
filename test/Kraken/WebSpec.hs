@@ -7,6 +7,7 @@ import           Control.Concurrent
 import           Control.Exception
 import           Data.Maybe
 import           Data.String.Conversions
+import           Network.Socket
 import           Network.URI
 import           Network.Wai.Handler.Warp as Warp
 import           Network.Wai.Test
@@ -29,34 +30,52 @@ store = createStore $
   Target "target.b" ["target.a"] (return ()) Nothing :
   []
 
-krakenPort :: Port
-krakenPort = 8287
-
-config :: [URI]
-config =
+config :: Port -> [URI]
+config krakenPort =
   (fromMaybe (error "error parsing test uri") (parseURI ("http://localhost:" ++ show krakenPort))) :
   []
 
-withKrakenDaemon :: IO a -> IO a
-withKrakenDaemon action = bracket acquire free (const action)
+withKrakenDaemon :: (Port -> IO a) -> IO a
+withKrakenDaemon action = bracket acquire free (\ (_, _, port) -> action port)
  where
   acquire = do
-    mvar <- newEmptyMVar
-    thread <- forkIO $ do
+    (notifyStart, waitForStart) <- lvar
+    (notifyKilled, waitForKilled) <- lvar
+    thread <- forkIO $ (do
+      (krakenPort, socket) <- openTestSocket
       let settings =
-            setPort krakenPort $
-            setBeforeMainLoop (putMVar mvar ())
+            setPort krakenPort $ -- for consistency, shouldn't be used (it's set in the socket)
+            setBeforeMainLoop (notifyStart krakenPort)
             defaultSettings
-      Warp.runSettings settings (daemon store)
-    takeMVar mvar
-    return thread
-  free = killThread
+      Warp.runSettingsSocket settings socket (daemon store))
+            `finally` notifyKilled ()
+    krakenPort <- waitForStart
+    return (thread, waitForKilled, krakenPort)
+  free (thread, waitForKilled, _) = do
+    killThread thread
+    waitForKilled
+
+  lvar :: IO (a -> IO (), IO a)
+  lvar = do
+    mvar <- newEmptyMVar
+    let put = putMVar mvar
+        wait = readMVar mvar
+    return (put, wait)
+
+openTestSocket :: IO (Port, Socket)
+openTestSocket = do
+  s <- socket AF_INET Stream defaultProtocol
+  localhost <- inet_addr "127.0.0.1"
+  bind s (SockAddrInet aNY_PORT localhost)
+  listen s 1
+  port <- socketPort s
+  return (fromIntegral port, s)
 
 
 spec :: Spec
 spec =
-  around_ withKrakenDaemon $
-  with (Kraken.Web.application config) $ do
+  around withKrakenDaemon $
+  beforeWith (\ krakenPort -> Kraken.Web.application (config krakenPort)) $ do
     describe "kraken-web" $ do
       it "returns the targetGraph as dot" $ do
         response <- get "/targetGraph.dot"
