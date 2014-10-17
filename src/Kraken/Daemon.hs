@@ -1,34 +1,38 @@
-{-# LANGUAGE FlexibleInstances, OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE DataKinds,  TypeOperators #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Kraken.Daemon where
 
 
-import           Data.Aeson
-import           Network.HTTP.Types
+import           Control.Monad.Trans.Either
+import           Data.Proxy
 import           Network.Wai
 import           Network.Wai.Handler.Warp.Run
-import           Network.Wai.UrlMap
+import           Network.Wai.TypedRest
 
 import           Kraken.Store
 import           Kraken.Web.TargetGraph
 
 
+-- * API definition
+
+type DaemonApi =
+  "targetGraph" :> (Get TargetGraph) :<|>
+  Get ()
+
+daemonApi :: Proxy DaemonApi
+daemonApi = Proxy
+
+
+-- * server implementation
+
 runDaemon :: Port -> Store -> IO ()
 runDaemon port store = runWarp port (daemon store)
 
 daemon :: Store -> Application
-daemon store = mapUrls $
-  mount "targetGraph" (jsonApplication (targetGraph store))
+daemon store = serve daemonApi (server store)
 
-type JsonApplication =
-  Request -> (Value -> IO ResponseReceived) -> IO ResponseReceived
-
-
-jsonApplication :: JsonApplication -> Application
-jsonApplication app request respond =
-  app request (respond . responseLBS ok200 [("Content-Type", "application/json")] . encode)
-
-targetGraph :: Store -> JsonApplication
-targetGraph store _ respond = do
-  respond (toJSON (toTargetGraph $ graph store))
+server :: Store -> Server DaemonApi
+server store =
+  (Proxy :: Proxy "targetGraph") :> (return $ toTargetGraph $ graph store) :<|>
+  left (404, "not found")

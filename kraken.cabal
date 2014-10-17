@@ -56,6 +56,7 @@ library
       Kraken.Web.Config
       Kraken.Web.TargetGraph
       Network.Wai.Handler.Warp.Run
+      Network.Wai.TypedRest
   default-language:
       Haskell2010
   ghc-options:
@@ -70,6 +71,7 @@ executable kraken-web
       base
     , aeson
     , bytestring
+    , containers
     , directory
     , either
     , enclosed-exceptions
@@ -117,6 +119,7 @@ test-suite krakenspec
     , containers
     , deepseq
     , directory
+    , either
     , graph-wrapper
     , hspec2
     , hspec-wai >= 0.5
@@ -133,6 +136,7 @@ test-suite krakenspec
     , string-conversions
     , temporary
     , transformers
+    , wai
     , wai-extra
     , warp
   if flag(network-uri)
