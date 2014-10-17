@@ -9,9 +9,10 @@ import           Control.Monad                (when)
 import           Data.Aeson
 import           Data.ByteString              (ByteString, hGetContents)
 import           Data.Graph.Wrapper
+import           Data.Maybe
 import           Data.String.Conversions
 import           Data.Traversable             (forM)
-import           Network.HTTP.Client          as Client hiding (port)
+import           Network.HTTP.Client          as Client
 import           Network.HTTP.Types
 import           Network.URI
 import           Network.Wai                  as Wai
@@ -31,7 +32,7 @@ import           Kraken.Web.TargetGraph
 run :: IO ()
 run = do
   config <- loadConfig
-  runWarp (port config) =<< application (krakenUris config)
+  runWarp (Kraken.Web.Config.port config) =<< application (krakenUris config)
 
 application :: [URI] -> IO Application
 application krakenUris = Client.withManager Client.defaultManagerSettings $ \ manager ->
@@ -44,10 +45,17 @@ data FileFormat
   | Pdf
 
 targetGraph :: [URI] -> Manager -> FileFormat -> Application
-targetGraph krakenUris manager fileFormat _request respond = do
+targetGraph krakenUris manager fileFormat request respond = do
+  let prefixes =
+        (\ xs -> if null xs then Nothing else Just xs) $
+        map cs $
+        catMaybes $
+        map snd $
+        filter ((== "prefix") . fst) $
+        Wai.queryString request
   graphParts <- forM krakenUris $ \ uri ->
     getValue manager uri
-  let dot = Kraken.Web.toDot $ mergeGraphs graphParts
+  let dot = Kraken.Web.toDot prefixes $ mergeGraphs graphParts
   case fileFormat of
     Pdf -> do
       (exitCode, pdf) <- readProcess "dot" ["-Tpdf"] dot
@@ -71,8 +79,8 @@ mergeGraphs :: [TargetGraph] -> TargetGraph
 mergeGraphs graphs = TargetGraph $ fromListLenient $
   concatMap (\ (TargetGraph g) -> toList g) graphs
 
-toDot :: TargetGraph -> String
-toDot (TargetGraph g) = Kraken.Dot.toDot False Nothing True (fmap Kraken.Dot.fromWebNode g)
+toDot :: Maybe [String] -> TargetGraph -> String
+toDot prefixes (TargetGraph g) = Kraken.Dot.toDot False prefixes True (fmap Kraken.Dot.fromWebNode g)
 
 
 -- * utils

@@ -1,10 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
 module Kraken.WebSpec where
 
 
 import           Control.Concurrent
 import           Control.Exception
+import           Data.List
 import           Data.Maybe
 import           Data.String.Conversions
 import           Network.Socket
@@ -12,7 +13,7 @@ import           Network.URI
 import           Network.Wai.Handler.Warp as Warp
 import           Network.Wai.Test
 import           System.Process
-import           Test.Hspec
+import           Test.Hspec               hiding (pending)
 import           Test.Hspec.Wai
 
 import           Kraken.Daemon
@@ -26,8 +27,9 @@ main = hspec spec
 
 store :: Store
 store = createStore $
-  Target "target.a" [] (return ()) Nothing :
-  Target "target.b" ["target.a"] (return ()) Nothing :
+  Target "target.1" [] (return ()) Nothing :
+  Target "internalTarget.2" ["target.1"] (return ()) Nothing :
+  Target "target.3" ["target.1", "internalTarget.2"] (return ()) Nothing :
   []
 
 config :: Port -> [URI]
@@ -77,17 +79,28 @@ spec =
   around withKrakenDaemon $
   beforeWith (\ krakenPort -> Kraken.Web.application (config krakenPort)) $ do
     describe "kraken-web" $ do
-      it "returns the targetGraph as dot" $ do
-        response <- get "/targetGraph.dot"
-        return response `shouldRespondWith` 200{matchHeaders = [("Content-Type" <:> "text/vnd.graphviz")]}
-        liftIO $ do
-          let ws = words (cs (simpleBody response))
-          ws `shouldContain` ["digraph"]
-          ws `shouldContain` words "\"target.b\" -> \"target.a\""
-
       it "returns the targetGraph as pdf" $ do
         response <- get "/targetGraph.pdf"
         return response `shouldRespondWith` 200{matchHeaders = [("Content-Type" <:> "application/pdf")]}
         liftIO $ do
           fileResult <- readProcess "file" ["-"] (cs $ simpleBody response)
           fileResult `shouldContain` "PDF"
+
+      context "/targetGraph.dot" $ do
+        it "returns the targetGraph as dot" $ do
+          response <- get "/targetGraph.dot"
+          return response `shouldRespondWith` 200{matchHeaders = [("Content-Type" <:> "text/vnd.graphviz")]}
+          liftIO $ do
+            let ws = words (cs (simpleBody response))
+            ws `shouldContain` ["digraph"]
+            ws `shouldContain` words "\"internalTarget.2\" -> \"target.1\""
+
+        it "allows to set a prefix" $ do
+          response <- get "/targetGraph.dot?prefix=target."
+          liftIO $ cs (simpleBody response) `shouldSatisfy` (\ (body :: String) ->
+            not ("2" `isInfixOf` body))
+
+        it "allows to set multiple prefixes" $ do
+          response <- get "/targetGraph.dot?prefix=target.&prefix=internalTarget."
+          liftIO $ cs (simpleBody response) `shouldSatisfy` (\ (body :: String) ->
+            ("2" `isInfixOf` body))
