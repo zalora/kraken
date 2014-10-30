@@ -47,10 +47,10 @@ parseKrakenOptions description customParser = execParser (options description cu
 
 runStore :: Store -> Options a -> IO ()
 runStore store opts = case opts of
-    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast -> do
+    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure -> do
         result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
-            runTargets store dryRun dontChaseDependencies omitMonitors failFast targets
+            runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets
         either reportAndExit return result
     Check _ -> do
         -- Checks are already performed by 'createStore'.
@@ -79,8 +79,8 @@ runStore store opts = case opts of
 -- * running
 
 -- | Will run all given targets, and collect their error messages.
-runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM ()
-runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
+runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM ()
+runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets = do
     executionPlan <- lookupExecutionPlan store dontChaseDependencies targets
     logMessage . unlines $
         "execution plan:" :
@@ -95,7 +95,16 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast targets = do
                     runTargetWithMonitor omitMonitors (name, node)
                     liftIO $ modifyMVar_ doneTargets (return . insert name)
   where
-    isolateM = if failFast then id else isolate
+    isolateM :: TargetM () -> TargetM ()
+    isolateM action = if failFast
+        then action
+        else do
+          result <- isolate action
+          case (retryOnFailure, result) of
+            (True, IsolateFailure) -> do
+                _ <- isolate action
+                return ()
+            _ -> return ()
 
 -- | Runs a target including executing the included monitors appropriately,
 --   ignoring the included dependencies.
@@ -139,7 +148,8 @@ data Options custom
         _useAsPrefix :: Bool,
         _dontChaseDependencies :: Bool,
         _omitMonitors :: Bool,
-        _failFast :: Bool
+        _failFast :: Bool,
+        _retryOnFailure :: Bool
       }
     | Check {
         customOptions :: custom
@@ -173,7 +183,8 @@ options description customParser =
                         useAsPrefix <*>
                         dontChaseDependencies <*>
                         omitMonitors <*>
-                        failFast)
+                        failFast <*>
+                        retryOnFailure)
                   (progDesc "run creation and monitoring operations for the specified targets")) <>
         command "check"
             (info (Check <$> customParser) (progDesc "perform static checks on the target store")) <>
@@ -227,6 +238,11 @@ options description customParser =
     failFast = switch (
         long "fail-fast" <>
         help "fail on first failing target")
+
+    retryOnFailure :: Parser Bool
+    retryOnFailure = switch (
+        long "retry-on-failure" <>
+        help "will retry the whole process on failure")
 
     withMonitors :: Parser Bool
     withMonitors = switch (

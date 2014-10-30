@@ -87,6 +87,10 @@ spec = do
             output <- capture_ $ runActionM (isolate (error "foo") >> liftIO (putStrLn "bar"))
             output `shouldSatisfy` ("bar" `isInfixOf`)
 
+        it "does execute subsequent actions in case of logError" $ do
+            output <- capture_ $ runActionM (isolate (logError "foo") >> liftIO (putStrLn "bar"))
+            output `shouldSatisfy` ("bar" `isInfixOf`)
+
         it "does collect errors" $ do
             result <- runActionM (isolate (cancel "foo") >> (cancel "bar" :: TargetM ()))
             result `shouldBe` Left [Error Nothing "foo", Error Nothing "bar"]
@@ -110,9 +114,23 @@ spec = do
                 cancel "bar"
             result `shouldBe` Left [Error (Just "foo") "bar"]
 
+        it "returns Success when no error is raised" $ do
+            result <- runActionM $ isolate $ return ()
+            result `shouldBe` Right IsolateSuccess
+
+        it "returns Failure when anything went wrong" $ do
+            let testErrorAction action = runActionM $ do
+                    result <- isolate action
+                    liftIO (result `shouldBe` IsolateFailure)
+            mapM_ testErrorAction $
+                (error "foo") :
+                (logError "bla") :
+                (cancel "baz") :
+                []
+
         it "(isolate . cancel) == logError" $ do
             let run action = hCapture [stdout, stderr] $ runActionM $ action
-            a <- run (isolate (cancel "foo"))
+            a <- run (void $ isolate (cancel "foo"))
             b <- run (logError "foo")
             a `shouldBe` b
 
@@ -213,7 +231,7 @@ data IsolatedTargetM
   deriving Show
 
 unwrap :: IsolatedTargetM -> ActionM Int ()
-unwrap x = isolate $ case x of
+unwrap x = void $ isolate $ case x of
     Cancel s -> cancel s
     ReturnUnit -> return ()
     LogMessageLn s -> logMessageLn s
