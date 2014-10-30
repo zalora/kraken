@@ -20,6 +20,7 @@ library
       base == 4.*
     , aeson
     , bytestring
+    , configurator
     , containers
     , directory
     , either
@@ -46,6 +47,7 @@ library
   exposed-modules:
       Kraken
       Kraken.ActionM
+      Kraken.Config
       Kraken.Daemon
       Kraken.Dot
       Kraken.Graph

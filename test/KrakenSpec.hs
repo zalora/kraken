@@ -46,6 +46,15 @@ spec = do
       edges (graph store) `shouldBe` [("t2", "t1")]
 
   describe "runAsMain" $ do
+    describe "global --config file command line option" $ do
+      it "reads kraken.conf.example successfully" $ do
+        withArgs (words "--config kraken.conf.example check") $
+          runAsMain (createStore [])
+
+      it "allows to specify global options after the command" $ do
+        withArgs (words "check --config kraken.conf.example") $ do
+          runAsMain (createStore [])
+
     describe "check command" $ do
       it "allows to perform static checks on the store" $ do
         let run = withArgs ["check"] $

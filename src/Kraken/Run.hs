@@ -2,28 +2,31 @@
 
 module Kraken.Run (
   runAsMain,
-  parseKrakenOptions,
+  runAsMainWithCustomConfig,
   Options(customOptions),
-  runStore,
  ) where
 
 
 import           Control.Concurrent.MVar
-import           Control.Monad            (when)
+import           Control.Monad            (when, join)
 import           Control.Monad.IO.Class
+import           Data.Configurator.Types  (Configured, Value)
 import           Data.Foldable            (forM_)
 import           Data.Graph.Wrapper       as Graph hiding (toList)
 import           Data.List                as List (null, (\\))
 import           Data.Monoid
 import           Data.Set                 as Set (empty, insert, member)
 import           Data.String.Interpolate
+import           Data.Traversable
 import           Network.Wai.Handler.Warp hiding (cancel)
 import           Options.Applicative      hiding (action)
+import           Prelude                  hiding (mapM)
 import           Safe
 import           System.Exit
 import           System.IO
 
 import           Kraken.ActionM
+import           Kraken.Config
 import           Kraken.Daemon
 import           Kraken.Dot
 import           Kraken.Graph
@@ -39,31 +42,36 @@ import           Kraken.Util
 -- - run as a daemon to regularly execute creation operations
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
-    options :: Options () <- parseKrakenOptions description (pure ())
-    runStore store options
+    runAsMainWithCustomConfig description (pure ()) (\ () (_ :: Maybe Value) -> return store)
 
-parseKrakenOptions :: String -> Parser custom -> IO (Options custom)
-parseKrakenOptions description customParser = execParser (options description customParser)
+runAsMainWithCustomConfig :: (Show customConfig, Configured customConfig) =>
+    String -> Parser custom -> (custom -> Maybe customConfig -> IO Store) -> IO ()
+runAsMainWithCustomConfig description customParser mkStore = do
+    options <- execParser (options description customParser)
+    config <- mapM loadConfig (configFile options)
+    store <- mkStore (customOptions options) (join $ fmap customConfig config)
+    runStore store options config
 
-runStore :: Store -> Options a -> IO ()
-runStore store opts = case opts of
-    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets -> do
+runStore :: Store -> Options a -> Maybe (KrakenConfig custom) -> IO ()
+runStore store opts _krakenConfig = case opts of
+    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets _ -> do
         result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
             runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets
         either reportAndExit return result
-    Check _ -> do
+    Check _ _ -> do
+        -- KrakenConfig is already parsed.
         -- Checks are already performed by 'createStore'.
         evalStore store
         logMessageLn "Store is consistent."
-    List _ -> putStr $ unlines $
+    List _ _ -> putStr $ unlines $
         fmap show $
         reverse $ topologicalSort $
         graph store
-    Dot _ withMonitors prefixes transitiveReduction ->
+    Dot _ withMonitors prefixes transitiveReduction _ ->
         putStr $ toDot withMonitors prefixes transitiveReduction $
           fmap Kraken.Dot.fromNode $ graph store
-    Daemon _ port -> runDaemon port store
+    Daemon _ port _ -> runDaemon port store
   where
     reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
@@ -151,31 +159,37 @@ data Options custom
         _omitMonitors :: Bool,
         _failFast :: Bool,
         _retryOnFailure :: Bool,
-        _excludeTargets :: [TargetName]
+        _excludeTargets :: [TargetName],
+        configFile :: Maybe FilePath
       }
     | Check {
-        customOptions :: custom
+        customOptions :: custom,
+        configFile :: Maybe FilePath
       }
     | List {
-        customOptions :: custom
+        customOptions :: custom,
+        configFile :: Maybe FilePath
       }
     | Dot {
         customOptions :: custom,
         _withMonitors :: Bool,
         _prefixes :: Maybe [String],
-        _transitiveReduction :: Bool
+        _transitiveReduction :: Bool,
+        configFile :: Maybe FilePath
       }
 
     | Daemon {
         customOptions :: custom,
-        _port :: Port
+        _port :: Port,
+        configFile :: Maybe FilePath
       }
   deriving Show
 
-options :: String -> Parser custom -> ParserInfo (Options custom)
+options :: forall custom . String -> Parser custom -> ParserInfo (Options custom)
 options description customParser =
     info (helper <*> parser) (fullDesc <> progDesc description)
   where
+    parser :: Parser (Options custom)
     parser = hsubparser (
         command "run"
             (info (Run <$>
@@ -199,7 +213,14 @@ options description customParser =
         command "daemon"
             (info (Daemon <$> customParser <*> port)
                   (progDesc "start a daemon that exposes the store through a web API"))
-      )
+      ) <*> config
+
+
+    config :: Parser (Maybe FilePath)
+    config = optional $ strOption $
+        long "config" <>
+        metavar "FILE" <>
+        help "config file"
 
     targetList :: Parser TargetList
     targetList = toTargetList <$>

@@ -1,0 +1,4 @@
+
+customConfig {
+  customOption = "foo"
+}
