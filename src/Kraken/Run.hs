@@ -3,7 +3,6 @@
 module Kraken.Run (
   runAsMain,
   runAsMainWithCustomConfig,
-  Options(customOptions),
  ) where
 
 
@@ -42,36 +41,36 @@ import           Kraken.Util
 -- - run as a daemon to regularly execute creation operations
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
-    runAsMainWithCustomConfig description (pure ()) (\ () (_ :: Maybe Value) -> return store)
+    runAsMainWithCustomConfig description (\ (_ :: Maybe Value) -> return store)
 
 runAsMainWithCustomConfig :: (Show customConfig, Configured customConfig) =>
-    String -> Parser custom -> (custom -> Maybe customConfig -> IO Store) -> IO ()
-runAsMainWithCustomConfig description customParser mkStore = do
-    options <- execParser (options description customParser)
+    String -> (Maybe customConfig -> IO Store) -> IO ()
+runAsMainWithCustomConfig description mkStore = do
+    options <- execParser (options description)
     config <- mapM loadConfig (configFile options)
-    store <- mkStore (customOptions options) (join $ fmap customConfig config)
+    store <- mkStore (join $ fmap customConfig config)
     runStore store options config
 
-runStore :: Store -> Options a -> Maybe (KrakenConfig custom) -> IO ()
+runStore :: Store -> Options -> Maybe (KrakenConfig custom) -> IO ()
 runStore store opts _krakenConfig = case opts of
-    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets _ -> do
+    Run targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets _ -> do
         result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
             runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets
         either reportAndExit return result
-    Check _ _ -> do
+    Check _ -> do
         -- KrakenConfig is already parsed.
         -- Checks are already performed by 'createStore'.
         evalStore store
         logMessageLn "Store is consistent."
-    List _ _ -> putStr $ unlines $
+    List _ -> putStr $ unlines $
         fmap show $
         reverse $ topologicalSort $
         graph store
-    Dot _ withMonitors prefixes transitiveReduction _ ->
+    Dot withMonitors prefixes transitiveReduction _ ->
         putStr $ toDot withMonitors prefixes transitiveReduction $
           fmap Kraken.Dot.fromNode $ graph store
-    Daemon _ port _ -> runDaemon port store
+    Daemon port _ -> runDaemon port store
   where
     reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
@@ -149,9 +148,8 @@ runTarget (targetName, target) = withTargetName targetName $ do
 
 -- * cli options
 
-data Options custom
+data Options
     = Run {
-        customOptions :: custom,
         _optTargets :: TargetList,
         _dryRun :: Bool,
         _useAsPrefix :: Bool,
@@ -163,15 +161,12 @@ data Options custom
         configFile :: Maybe FilePath
       }
     | Check {
-        customOptions :: custom,
         configFile :: Maybe FilePath
       }
     | List {
-        customOptions :: custom,
         configFile :: Maybe FilePath
       }
     | Dot {
-        customOptions :: custom,
         _withMonitors :: Bool,
         _prefixes :: Maybe [String],
         _transitiveReduction :: Bool,
@@ -179,21 +174,19 @@ data Options custom
       }
 
     | Daemon {
-        customOptions :: custom,
         _port :: Port,
         configFile :: Maybe FilePath
       }
   deriving Show
 
-options :: forall custom . String -> Parser custom -> ParserInfo (Options custom)
-options description customParser =
+options :: String -> ParserInfo Options
+options description =
     info (helper <*> parser) (fullDesc <> progDesc description)
   where
-    parser :: Parser (Options custom)
+    parser :: Parser Options
     parser = hsubparser (
         command "run"
             (info (Run <$>
-                        customParser <*>
                         targetList <*>
                         dryRun <*>
                         useAsPrefix <*>
@@ -204,14 +197,14 @@ options description customParser =
                         excludeTargets)
                   (progDesc "run creation and monitoring operations for the specified targets")) <>
         command "check"
-            (info (Check <$> customParser) (progDesc "perform static checks on the target store")) <>
+            (info (pure Check) (progDesc "perform static checks on the target store")) <>
         command "list"
-            (info (List <$> customParser) (progDesc "list all targets")) <>
+            (info (pure List) (progDesc "list all targets")) <>
         command "dot"
-            (info (Dot <$> customParser <*> withMonitors <*> prefixes <*> transitiveReduction)
+            (info (Dot <$> withMonitors <*> prefixes <*> transitiveReduction)
                   (progDesc "output target graph in dot format")) <>
         command "daemon"
-            (info (Daemon <$> customParser <*> port)
+            (info (Daemon <$> port)
                   (progDesc "start a daemon that exposes the store through a web API"))
       ) <*> config
 
