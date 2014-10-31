@@ -20,6 +20,7 @@ import           Test.QuickCheck
 
 import           Kraken                  hiding (catch, runAsMain)
 import qualified Kraken
+import           Kraken.ActionMSpec      (mockStateful)
 
 
 main :: IO ()
@@ -219,6 +220,27 @@ spec = do
           let run = withArgs ["run", "--omit-monitors", "t1"] (runAsMain (store mvar (append mvar "m1")))
           hSilence [stderr] run
           readMVar mvar `shouldReturn` ["t1"]
+
+      context "--retry-on-failure" $ do
+        it "reruns failing targets" $ do
+          mvar :: MVar [String] <- newMVar []
+          failingOnce <- mockStateful $
+            const (append mvar "failing" >> cancel "cancel") :
+            const (append mvar "success") :
+            []
+          let store = createStore $
+                Target "t1" [] (failingOnce ()) Nothing :
+                []
+              run = withArgs (words "run --retry-on-failure t1") (runWithExitCode store)
+          run `shouldReturn` ExitFailure 70
+          readMVar mvar `shouldReturn` ["failing", "success"]
+
+        it "does not retry indefinitely" $ do
+          let store = createStore $
+                Target "t1" [] (cancel "error") Nothing :
+                []
+              run = withArgs (words "run --retry-on-failure t1") (runWithExitCode store)
+          run `shouldReturn` ExitFailure 70
 
     describe "list command" $ do
       it "lists available targets" $ do

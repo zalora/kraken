@@ -16,6 +16,7 @@ module Kraken.ActionM (
     withTargetName,
 
     logError,
+    IsolateResult(..),
     isolate,
     catch,
     mapExceptions,
@@ -158,9 +159,15 @@ logError msg = ActionM $ do
     logMessage $ showError error
     get >>= ((++ [error]) >>> put)
 
+
+data IsolateResult
+  = IsolateSuccess
+  | IsolateFailure
+ deriving (Eq, Ord, Show, Read, Typeable)
+
 -- | Runs the given action and always succeeds. Both Lefts and Exceptions are
--- being written to the error state.
-isolate :: ActionM monitorInput () -> ActionM monitorInput ()
+-- being written to the error state. Returns whether something went wrong.
+isolate :: ActionM monitorInput () -> ActionM monitorInput IsolateResult
 isolate action = do
     currentTarget <- ActionM ask
     result <- liftIO $ catchAny
@@ -170,11 +177,11 @@ isolate action = do
             logMessage $ showError error
             return $ Left [error])
     case result of
-        Right () -> return ()
+        Right () -> return IsolateSuccess
         Left errs -> ActionM $ do
             state <- get
             put (state ++ errs)
-            return ()
+            return IsolateFailure
 
 mapExceptions :: (E.Exception a, E.Exception b) => (a -> b) -> ActionM monitorInput o -> ActionM monitorInput o
 mapExceptions f action = catch action (liftIO . E.throwIO . f)
