@@ -41,13 +41,13 @@ import           Kraken.Util
 -- - run as a daemon to regularly execute creation operations
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
-    runAsMainWithCustomConfig description (\ (_ :: Maybe Value) -> return store)
+    runAsMainWithCustomConfig description Nothing (\ (_ :: Maybe Value) -> return store)
 
 runAsMainWithCustomConfig :: (Show customConfig, Configured customConfig) =>
-    String -> (Maybe customConfig -> IO Store) -> IO ()
-runAsMainWithCustomConfig description mkStore = do
+    String -> Maybe FilePath -> (Maybe customConfig -> IO Store) -> IO ()
+runAsMainWithCustomConfig description mDefaultConfigFile mkStore = do
     options <- execParser (options description)
-    config <- mapM loadConfig (configFile options)
+    config <- mapM loadConfig (configFile options <|> mDefaultConfigFile)
     store <- mkStore (join $ fmap customConfig config)
     runStore store options config
 

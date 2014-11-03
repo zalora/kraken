@@ -8,12 +8,14 @@ import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Data.Configurator.Types
 import           Data.Graph.Wrapper
 import           Data.List
 import           System.Environment
 import           System.Exit
 import           System.IO
 import           System.IO.Silently
+import           System.IO.Temp
 import           Test.Hspec
 import           Test.HUnit
 import           Test.QuickCheck
@@ -54,6 +56,14 @@ spec = do
       it "allows to specify global options after the command" $ do
         withArgs (words "check --config kraken.conf.example") $ do
           runAsMain (createStore [])
+
+      it "allows to specify a default config file (through the API)" $
+        withSystemTempFile "kraken-tests" $ \ file handle -> do
+          hClose handle
+          readFile "kraken.conf.example" >>= writeFile file
+          withArgs ["check"] $
+            Kraken.runAsMainWithCustomConfig "test program" (Just file) $
+              \ (_ :: Maybe Value) -> return (createStore [])
 
     describe "check command" $ do
       it "allows to perform static checks on the store" $ do
