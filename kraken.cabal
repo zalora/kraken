@@ -116,6 +116,7 @@ test-suite krakenspec
       base == 4.*
     , aeson
     , checkers
+    , configurator
     , containers
     , deepseq
     , directory

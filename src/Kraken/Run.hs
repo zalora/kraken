@@ -1,4 +1,4 @@
-{-# LANGUAGE QuasiQuotes, ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes, ScopedTypeVariables, TupleSections #-}
 
 module Kraken.Run (
   runAsMain,
@@ -7,16 +7,16 @@ module Kraken.Run (
 
 
 import           Control.Concurrent.MVar
-import           Control.Monad            (when, join)
+import           Control.Monad            (when)
 import           Control.Monad.IO.Class
-import           Data.Configurator.Types  (Configured, Value)
+import           Data.Configurator.Types  (Config)
 import           Data.Foldable            (forM_)
 import           Data.Graph.Wrapper       as Graph hiding (toList)
 import           Data.List                as List (null, (\\))
+import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                 as Set (empty, insert, member)
 import           Data.String.Interpolate
-import           Data.Traversable
 import           Network.Wai.Handler.Warp hiding (cancel)
 import           Options.Applicative      hiding (action)
 import           Prelude                  hiding (mapM)
@@ -41,17 +41,18 @@ import           Kraken.Util
 -- - run as a daemon to regularly execute creation operations
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
-    runAsMainWithCustomConfig description Nothing (\ (_ :: Maybe (FilePath, Value)) -> return store)
-
-runAsMainWithCustomConfig :: (Show customConfig, Configured customConfig) =>
-    String -> Maybe FilePath -> (Maybe (FilePath, customConfig) -> IO Store) -> IO ()
-runAsMainWithCustomConfig description mDefaultConfigFile mkStore = do
     options <- execParser (options description)
-    config <- mapM loadConfig (configFile options <|> mDefaultConfigFile)
-    store <- mkStore (join $ fmap customConfig config)
+    runStore store options defaultKrakenConfig
+
+runAsMainWithCustomConfig :: String -> FilePath -> ((FilePath, Config) -> IO Store) -> IO ()
+runAsMainWithCustomConfig description defaultConfigFile mkStore = do
+    options <- execParser (options description)
+    let usedConfigFile = fromMaybe defaultConfigFile (configFile options)
+    (config, custom) <- loadConfig usedConfigFile
+    store <- mkStore (usedConfigFile, custom)
     runStore store options config
 
-runStore :: Store -> Options -> Maybe (KrakenConfig custom) -> IO ()
+runStore :: Store -> Options -> KrakenConfig -> IO ()
 runStore store opts _krakenConfig = case opts of
     Run targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets _ -> do
         result <- runActionM $ do

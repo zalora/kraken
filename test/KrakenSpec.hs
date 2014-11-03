@@ -8,6 +8,7 @@ import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Data.Configurator
 import           Data.Configurator.Types
 import           Data.Graph.Wrapper
 import           Data.List
@@ -62,8 +63,14 @@ spec = do
           hClose handle
           readFile "kraken.conf.example" >>= writeFile file
           withArgs ["check"] $
-            Kraken.runAsMainWithCustomConfig "test program" (Just file) $
-              \ (_ :: Maybe (FilePath, Value)) -> return (createStore [])
+            runAsMainWithCustomConfig "test program" file $
+              \ (_ :: (FilePath, Config)) -> return (createStore [])
+
+      it "reads the custom configuration section of the example file successfully" $ do
+        withArgs (words "check --config kraken.conf.example") $
+          runAsMainWithCustomConfig "test program" "kraken.conf.example" $ \ (_, config) -> do
+            require config "foo" `shouldReturn` (42 :: Integer)
+            return $ createStore []
 
     describe "check command" $ do
       it "allows to perform static checks on the store" $ do

@@ -1,4 +1,4 @@
 
 customConfig {
-  customOption = "foo"
+  foo = 42
 }

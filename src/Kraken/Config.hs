@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 
 module Kraken.Config where
@@ -8,16 +8,16 @@ import           Data.Configurator
 import           Data.Configurator.Types
 
 
-data KrakenConfig custom = KrakenConfig {
-  customConfig :: Maybe custom
- }
-  deriving (Show, Eq, Ord)
+data KrakenConfig = KrakenConfig
+  deriving Show
 
-loadConfig :: (Show custom, Configured custom) =>
-  FilePath -> IO (KrakenConfig custom)
+defaultKrakenConfig :: KrakenConfig
+defaultKrakenConfig = KrakenConfig
+
+loadConfig :: FilePath -> IO (KrakenConfig, Config)
 loadConfig configFile = do
   config <- load [Required configFile]
-  custom <- Data.Configurator.lookup config "customConfig"
-  let result = KrakenConfig custom
+  let custom = subconfig "customConfig" config
+      result = KrakenConfig
   seq (length $ show result) (return ())
-  return result
+  return (result, custom)
