@@ -63,7 +63,7 @@ spec = do
           readFile "kraken.conf.example" >>= writeFile file
           withArgs ["check"] $
             Kraken.runAsMainWithCustomConfig "test program" (Just file) $
-              \ (_ :: Maybe Value) -> return (createStore [])
+              \ (_ :: Maybe (FilePath, Value)) -> return (createStore [])
 
     describe "check command" $ do
       it "allows to perform static checks on the store" $ do
