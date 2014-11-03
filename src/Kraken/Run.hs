@@ -13,7 +13,7 @@ import           Control.Monad            (when)
 import           Control.Monad.IO.Class
 import           Data.Foldable            (forM_)
 import           Data.Graph.Wrapper       as Graph hiding (toList)
-import           Data.List                as List (null)
+import           Data.List                as List (null, (\\))
 import           Data.Monoid
 import           Data.Set                 as Set (empty, insert, member)
 import           Data.String.Interpolate
@@ -47,10 +47,10 @@ parseKrakenOptions description customParser = execParser (options description cu
 
 runStore :: Store -> Options a -> IO ()
 runStore store opts = case opts of
-    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure -> do
+    Run _ targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets -> do
         result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
-            runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets
+            runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets
         either reportAndExit return result
     Check _ -> do
         -- Checks are already performed by 'createStore'.
@@ -79,9 +79,10 @@ runStore store opts = case opts of
 -- * running
 
 -- | Will run all given targets, and collect their error messages.
-runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> TargetM ()
-runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets = do
-    executionPlan <- lookupExecutionPlan store dontChaseDependencies targets
+runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> [TargetName] -> TargetM ()
+runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets = do
+    plans <- lookupExecutionPlan store dontChaseDependencies targets
+    let executionPlan = filter (not . (`elem` excludeTargets) . fst) plans
     logMessage . unlines $
         "execution plan:" :
         (fmap (("    " ++) . show . fst) executionPlan)
@@ -89,7 +90,7 @@ runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailu
         doneTargets <- liftIO $ newMVar Set.empty
         forM_ executionPlan $ \ (name, node) -> do
             done <- liftIO $ readMVar doneTargets
-            let dependencies = lookupDependencies store name
+            let dependencies = lookupDependencies store name List.\\ excludeTargets
             when (all (`Set.member` done) dependencies || dontChaseDependencies) $ do
                 isolateM $ do
                     runTargetWithMonitor omitMonitors (name, node)
@@ -149,7 +150,8 @@ data Options custom
         _dontChaseDependencies :: Bool,
         _omitMonitors :: Bool,
         _failFast :: Bool,
-        _retryOnFailure :: Bool
+        _retryOnFailure :: Bool,
+        _excludeTargets :: [TargetName]
       }
     | Check {
         customOptions :: custom
@@ -184,7 +186,8 @@ options description customParser =
                         dontChaseDependencies <*>
                         omitMonitors <*>
                         failFast <*>
-                        retryOnFailure)
+                        retryOnFailure <*>
+                        excludeTargets)
                   (progDesc "run creation and monitoring operations for the specified targets")) <>
         command "check"
             (info (Check <$> customParser) (progDesc "perform static checks on the target store")) <>
@@ -268,3 +271,11 @@ options description customParser =
         long "port" <>
         short 'p' <>
         help "port for the web API")
+
+    excludeTargets :: Parser [TargetName]
+    excludeTargets = map TargetName <$>
+        many ( strOption $
+          short 'e' <>
+          long "exclude" <>
+          metavar "TARGET" <>
+          help "Targets to be excluded")

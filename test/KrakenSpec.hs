@@ -242,6 +242,27 @@ spec = do
               run = withArgs (words "run --retry-on-failure t1") (runWithExitCode store)
           run `shouldReturn` ExitFailure 70
 
+      context "-e --exclude with multiple targets" $ do
+        let store = createStore $
+              Target "A" [] (logMessageLn "executing A") Nothing :
+              Target "B" ["A"] (logMessageLn "executing B") Nothing :
+              Target "C" ["B"] (logMessageLn "executing C") Nothing :
+              Target "D" ["B"] (logMessageLn "executing D") Nothing :
+              Target "E" ["D"] (logMessageLn "executing E") Nothing :
+              []
+            run :: IO String
+            run = hCapture_ [stderr] $ withArgs (words "run C E -e D -e A") $ runAsMain store
+
+        it "does execute all dependencies targets not in excluded list" $ do
+          result <- run
+          result `shouldContain` "executing B"
+          result `shouldContain` "executing C"
+          result `shouldContain` "executing E"
+
+        it "does not execute excluded targets" $ do
+          result <- lines <$> run
+          result `shouldSatisfy` (\r -> not $ any (`elem` r) ["executing A", "executing D"])
+
     describe "list command" $ do
       it "lists available targets" $ do
         withArgs ["list"] $ do
