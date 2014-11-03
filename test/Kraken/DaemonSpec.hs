@@ -71,6 +71,15 @@ spec = do
         killThread threadId
       output `shouldContain` show port
 
+    it "allows to use the global --config option" $ do
+      output <- hCapture_ [stderr] $ do
+        threadId <- forkIO $
+          withArgs ["daemon", "--config", "kraken.conf.example", "--port", show port] $
+          Kraken.runAsMain "test program" store
+        threadDelay 100000
+        killThread threadId
+      output `shouldContain` show port
+
   describe "daemon application" $ appSpec
 
 appSpec :: Spec

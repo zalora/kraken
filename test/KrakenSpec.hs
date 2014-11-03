@@ -51,7 +51,7 @@ spec = do
   describe "runAsMain" $ do
     describe "global --config file command line option" $ do
       it "reads kraken.conf.example successfully" $ do
-        withArgs (words "--config kraken.conf.example check") $
+        withArgs (words "check --config kraken.conf.example") $
           runAsMain (createStore [])
 
       it "allows to specify global options after the command" $ do

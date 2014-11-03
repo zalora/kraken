@@ -5,12 +5,15 @@ module Kraken.DotSpec where
 
 import           Control.DeepSeq
 import           Data.Graph.Wrapper
+import           System.Environment
 import           Test.Hspec
 import           Test.QuickCheck
 
 import           Kraken.ActionM
 import           Kraken.Dot
 import           Kraken.Graph
+import           Kraken.Run
+import           Kraken.Store
 
 
 main :: IO ()
@@ -39,6 +42,11 @@ spec = do
         counterexample (show $ mapPrefixes prefixes) $
           all (\ p -> p == "" || last p == '.')
               (fmap snd $ mapPrefixes prefixes)
+
+  describe "runAsMain" $ do
+    it "allows to use the global --config option" $ do
+      withArgs (words "dot --config kraken.conf.example") $
+        runAsMain "test program" (createStore [])
 
 unique :: (Show a, Eq a) => [a] -> Property
 unique list = case filter (\ e -> length (filter (== e) list) > 1) list of

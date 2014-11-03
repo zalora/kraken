@@ -195,19 +195,20 @@ options description =
                         omitMonitors <*>
                         failFast <*>
                         retryOnFailure <*>
-                        excludeTargets)
+                        excludeTargets <*>
+                        config)
                   (progDesc "run creation and monitoring operations for the specified targets")) <>
         command "check"
-            (info (pure Check) (progDesc "perform static checks on the target store")) <>
+            (info (Check <$> config) (progDesc "perform static checks on the target store")) <>
         command "list"
-            (info (pure List) (progDesc "list all targets")) <>
+            (info (List <$> config) (progDesc "list all targets")) <>
         command "dot"
-            (info (Dot <$> withMonitors <*> prefixes <*> transitiveReduction)
+            (info (Dot <$> withMonitors <*> prefixes <*> transitiveReduction <*> config)
                   (progDesc "output target graph in dot format")) <>
         command "daemon"
-            (info (Daemon <$> port)
+            (info (Daemon <$> port <*> config)
                   (progDesc "start a daemon that exposes the store through a web API"))
-      ) <*> config
+      )
 
 
     config :: Parser (Maybe FilePath)
