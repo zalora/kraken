@@ -46,7 +46,7 @@ import           Kraken.Util
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
     options <- execParser (options description)
-    runStore store options defaultKrakenConfig
+    runStore options defaultKrakenConfig store
 
 runAsMainWithCustomConfig :: String -> FilePath -> ((FilePath, Config) -> IO Store) -> IO ()
 runAsMainWithCustomConfig description defaultConfigFile mkStore = do
@@ -54,10 +54,10 @@ runAsMainWithCustomConfig description defaultConfigFile mkStore = do
     let usedConfigFile = fromMaybe defaultConfigFile (configFile options)
     (config, custom) <- loadConfig usedConfigFile
     store <- mkStore (usedConfigFile, custom)
-    runStore store options config
+    runStore options config store
 
-runStore :: Store -> Options -> KrakenConfig -> IO ()
-runStore store opts _krakenConfig = case opts of
+runStore :: Options -> KrakenConfig -> Store -> IO ()
+runStore opts _krakenConfig store = case opts of
     Run targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets _ -> do
         result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
