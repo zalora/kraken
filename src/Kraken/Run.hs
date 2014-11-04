@@ -45,37 +45,37 @@ import           Kraken.Util
 -- - run as a daemon to regularly execute creation operations
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
-    options <- execParser (options description)
+    (options, _) <- execParser (options description)
     runStore options defaultKrakenConfig store
 
 runAsMainWithCustomConfig :: String -> FilePath -> ((FilePath, Config) -> IO Store) -> IO ()
 runAsMainWithCustomConfig description defaultConfigFile mkStore = do
-    options <- execParser (options description)
-    let usedConfigFile = fromMaybe defaultConfigFile (configFile options)
-    (config, custom) <- loadConfig usedConfigFile
-    store <- mkStore (usedConfigFile, custom)
+    (options, mConfigFile) <- execParser (options description)
+    let configFile = fromMaybe defaultConfigFile mConfigFile
+    (config, custom) <- loadConfig configFile
+    store <- mkStore (configFile, custom)
     runStore options config store
 
 runStore :: Options -> KrakenConfig -> Store -> IO ()
 runStore opts _krakenConfig store = case opts of
-    Run targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets _ -> do
+    Run targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets -> do
         result <- runActionM $ do
             targets <- lookupTargets store useAsPrefix targetList
             runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets
         either reportAndExit return result
-    Check _ -> do
+    Check -> do
         -- KrakenConfig is already parsed.
         -- Checks are already performed by 'createStore'.
         evalStore store
         logMessageLn "Store is consistent."
-    List _ -> putStr $ unlines $
+    List -> putStr $ unlines $
         fmap show $
         reverse $ topologicalSort $
         graph store
-    Dot withMonitors prefixes transitiveReduction _ ->
+    Dot withMonitors prefixes transitiveReduction ->
         putStr $ toDot withMonitors prefixes transitiveReduction $
           fmap Kraken.Dot.fromNode $ graph store
-    Daemon port _ -> runDaemon port store
+    Daemon port -> runDaemon port store
   where
     reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
@@ -162,36 +162,29 @@ data Options
         _omitMonitors :: Bool,
         _failFast :: Bool,
         _retryOnFailure :: Bool,
-        _excludeTargets :: [TargetName],
-        configFile :: Maybe FilePath
+        _excludeTargets :: [TargetName]
       }
-    | Check {
-        configFile :: Maybe FilePath
-      }
-    | List {
-        configFile :: Maybe FilePath
-      }
+    | Check
+    | List
     | Dot {
         _withMonitors :: Bool,
         _prefixes :: Maybe [String],
-        _transitiveReduction :: Bool,
-        configFile :: Maybe FilePath
+        _transitiveReduction :: Bool
       }
 
     | Daemon {
-        _port :: Port,
-        configFile :: Maybe FilePath
+        _port :: Port
       }
   deriving Show
 
-options :: String -> ParserInfo Options
+options :: String -> ParserInfo (Options, Maybe FilePath)
 options description =
     info (helper <*> parser) (fullDesc <> progDesc description)
   where
-    parser :: Parser Options
+    parser :: Parser (Options, Maybe FilePath)
     parser = hsubparser (
         command "run"
-            (info (Run <$>
+            (info (addConfig (Run <$>
                         targetList <*>
                         dryRun <*>
                         useAsPrefix <*>
@@ -199,21 +192,23 @@ options description =
                         omitMonitors <*>
                         failFast <*>
                         retryOnFailure <*>
-                        excludeTargets <*>
-                        config)
-                  (progDesc "run creation and monitoring operations for the specified targets")) <>
+                        excludeTargets))
+                (progDesc "run creation and monitoring operations for the specified targets")) <>
         command "check"
-            (info (Check <$> config) (progDesc "perform static checks on the target store")) <>
+            (info (addConfig (pure Check)) (progDesc "perform static checks on the target store")) <>
         command "list"
-            (info (List <$> config) (progDesc "list all targets")) <>
+            (info (addConfig (pure List)) (progDesc "list all targets")) <>
         command "dot"
-            (info (Dot <$> withMonitors <*> prefixes <*> transitiveReduction <*> config)
-                  (progDesc "output target graph in dot format")) <>
+            (info (addConfig (Dot <$> withMonitors <*> prefixes <*> transitiveReduction))
+                (progDesc "output target graph in dot format")) <>
         command "daemon"
-            (info (Daemon <$> port <*> config)
-                  (progDesc "start a daemon that exposes the store through a web API"))
+            (info (addConfig (Daemon <$> port))
+                (progDesc "start a daemon that exposes the store through a web API"))
       )
 
+
+    addConfig :: Parser a -> Parser (a, Maybe FilePath)
+    addConfig fst = (,) <$> fst <*> config
 
     config :: Parser (Maybe FilePath)
     config = optional $ strOption $
