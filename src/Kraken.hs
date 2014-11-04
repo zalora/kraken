@@ -2,7 +2,9 @@
 module Kraken (
     module Kraken.ActionM,
     module Kraken.Store,
-    module Kraken.Run,
+
+    runAsMain,
+    runAsMainWithCustomConfig,
 
     Target(..),
     Monitor(..),

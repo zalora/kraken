@@ -3,6 +3,10 @@
 module Kraken.Run (
   runAsMain,
   runAsMainWithCustomConfig,
+
+  -- exported for testing
+  runStore,
+  Options(..),
  ) where
 
 
