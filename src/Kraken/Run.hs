@@ -7,10 +7,11 @@ module Kraken.Run (
   -- exported for testing
   runStore,
   Options(..),
+  RunOptions(..),
  ) where
 
 
-import           Control.Concurrent.MVar
+import           Control.Concurrent
 import           Control.Monad            (when)
 import           Control.Monad.IO.Class
 import           Data.Configurator.Types  (Config)
@@ -27,6 +28,7 @@ import           Prelude                  hiding (mapM)
 import           Safe
 import           System.Exit
 import           System.IO
+import           Text.Printf
 
 import           Kraken.ActionM
 import           Kraken.Config
@@ -57,11 +59,11 @@ runAsMainWithCustomConfig description defaultConfigFile mkStore = do
     runStore options config store
 
 runStore :: Options -> KrakenConfig -> Store -> IO ()
-runStore opts _krakenConfig store = case opts of
-    Run targetList dryRun useAsPrefix dontChaseDependencies omitMonitors failFast retryOnFailure excludeTargets -> do
+runStore opts krakenConfig store = case opts of
+    Run runOptions -> do
         result <- runActionM $ do
-            targets <- lookupTargets store useAsPrefix targetList
-            runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets
+            targets <- lookupTargets store (useAsPrefix runOptions) (targetList runOptions)
+            runTargets runOptions krakenConfig store targets
         either reportAndExit return result
     Check -> do
         -- KrakenConfig is already parsed.
@@ -91,30 +93,36 @@ runStore opts _krakenConfig store = case opts of
 -- * running
 
 -- | Will run all given targets, and collect their error messages.
-runTargets :: Store -> Bool -> Bool -> Bool -> Bool -> Bool -> [TargetName] -> [TargetName] -> TargetM ()
-runTargets store dryRun dontChaseDependencies omitMonitors failFast retryOnFailure targets excludeTargets = do
-    plans <- lookupExecutionPlan store dontChaseDependencies targets
-    let executionPlan = filter (not . (`elem` excludeTargets) . fst) plans
+runTargets :: RunOptions -> KrakenConfig -> Store -> [TargetName] -> TargetM ()
+runTargets options config store targets = do
+    plans <- lookupExecutionPlan store (dontChaseDependencies options) targets
+    let executionPlan = filter (not . (`elem` excludeTargets options) . fst) plans
     logMessage . unlines $
         "execution plan:" :
         (fmap (("    " ++) . show . fst) executionPlan)
-    when (not dryRun) $ do
+    when (not $ dryRun options) $ do
         doneTargets <- liftIO $ newMVar Set.empty
         forM_ executionPlan $ \ (name, node) -> do
             done <- liftIO $ readMVar doneTargets
-            let dependencies = lookupDependencies store name List.\\ excludeTargets
-            when (all (`Set.member` done) dependencies || dontChaseDependencies) $ do
-                isolateM $ do
-                    runTargetWithMonitor omitMonitors (name, node)
+            let dependencies = lookupDependencies store name List.\\ excludeTargets options
+            when (all (`Set.member` done) dependencies || (dontChaseDependencies options)) $ do
+                isolateM name $ do
+                    runTargetWithMonitor (omitMonitors options) (name, node)
                     liftIO $ modifyMVar_ doneTargets (return . insert name)
   where
-    isolateM :: TargetM () -> TargetM ()
-    isolateM action = if failFast
+    isolateM :: TargetName -> TargetM () -> TargetM ()
+    isolateM target action = if failFast options
         then action
         else do
           result <- isolate action
-          case (retryOnFailure, result) of
+          case (retryOnFailure options, result) of
             (True, IsolateFailure) -> do
+                case retryDelay config of
+                    Nothing -> do
+                        logMessageLn [i|retrying target #{target}|]
+                    Just delay -> do
+                        logMessageLn [i|retrying target #{target} in #{printf "%f" delay :: String} seconds...|]
+                        liftIO $ threadDelay $ round (delay * 10 ^ (6 :: Integer))
                 _ <- isolate action
                 return ()
             _ -> return ()
@@ -154,16 +162,7 @@ runTarget (targetName, target) = withTargetName targetName $ do
 -- * cli options
 
 data Options
-    = Run {
-        _optTargets :: TargetList,
-        _dryRun :: Bool,
-        _useAsPrefix :: Bool,
-        _dontChaseDependencies :: Bool,
-        _omitMonitors :: Bool,
-        _failFast :: Bool,
-        _retryOnFailure :: Bool,
-        _excludeTargets :: [TargetName]
-      }
+    = Run RunOptions
     | Check
     | List
     | Dot {
@@ -177,6 +176,18 @@ data Options
       }
   deriving Show
 
+data RunOptions = RunOptions {
+    targetList :: TargetList,
+    dryRun :: Bool,
+    useAsPrefix :: Bool,
+    dontChaseDependencies :: Bool,
+    omitMonitors :: Bool,
+    failFast :: Bool,
+    retryOnFailure :: Bool,
+    excludeTargets :: [TargetName]
+  }
+    deriving Show
+
 options :: String -> ParserInfo (Options, Maybe FilePath)
 options description =
     info (helper <*> parser) (fullDesc <> progDesc description)
@@ -184,7 +195,7 @@ options description =
     parser :: Parser (Options, Maybe FilePath)
     parser = hsubparser (
         command "run"
-            (info (addConfig (Run <$>
+            (info (addConfig (Run <$> (RunOptions <$>
                         targetList <*>
                         dryRun <*>
                         useAsPrefix <*>
@@ -192,7 +203,7 @@ options description =
                         omitMonitors <*>
                         failFast <*>
                         retryOnFailure <*>
-                        excludeTargets))
+                        excludeTargets)))
                 (progDesc "run creation and monitoring operations for the specified targets")) <>
         command "check"
             (info (addConfig (pure Check)) (progDesc "perform static checks on the target store")) <>

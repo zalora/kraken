@@ -1,4 +1,7 @@
 
+# delay for retrying failing targets (in seconds)
+retryDelay = 300
+
 customConfig {
   foo = 42
 }
