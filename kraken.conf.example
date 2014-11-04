@@ -2,6 +2,9 @@
 # delay for retrying failing targets (in seconds)
 retryDelay = 300
 
+# number of times something is retried (default 1)
+numberOfRetries = 3
+
 customConfig {
   foo = 42
 }

@@ -5,10 +5,13 @@ module Kraken.RunSpec where
 
 
 import           Control.Exception
+import           Control.Monad.IO.Class
+import           Prelude                hiding (log)
 import           System.Exit
 import           System.IO
 import           System.IO.Silently
 import           Test.Hspec
+import           Test.QuickCheck
 
 import           Kraken.ActionM
 import           Kraken.Config
@@ -67,3 +70,28 @@ spec = do
         let waitConfig = config {retryDelay = Just 0.01}
         (output, _) <- run retryOptions waitConfig =<< retryStore
         lines output `shouldContain` ["retrying target A in 0.01 seconds..."]
+
+      it "retries n times if specified" $ do
+        property $ \ (Positive numberOfFails) (Positive numberOfRetries) -> ioProperty $ do
+          let waitConfig = config {numberOfRetries = numberOfRetries}
+          failing <- mockStateful $
+            replicate numberOfFails (const (cancel "cancel")) ++
+            const (return ()) :
+            []
+          let store = createStore $
+                Target "A" [] (log "A is executed" >> failing ()) Nothing :
+                Target "B" ["A"] (log "B is executed") Nothing :
+                []
+          (output, exitCode) <- run (Run (options "B"){retryOnFailure = True}) waitConfig store
+          return $
+            (exitCode === if numberOfFails > 0 then ExitFailure 70 else ExitSuccess) .&&.
+            (counterexample "is A executed the right number of times?"
+              (length (filter (== "A is executed") (lines output))
+               === min (1 + numberOfRetries) (1 + numberOfFails))) .&&.
+            (counterexample ("is B executed? - " ++ output)
+              (if numberOfFails <= numberOfRetries
+                then "B is executed" `elem` lines output
+                else all (not . (== "B is executed")) (lines output)))
+
+log :: MonadIO m => String -> m ()
+log message = liftIO $ hPutStrLn stderr message

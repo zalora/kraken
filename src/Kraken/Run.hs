@@ -106,24 +106,24 @@ runTargets options config store targets = do
             done <- liftIO $ readMVar doneTargets
             let dependencies = lookupDependencies store name List.\\ excludeTargets options
             when (all (`Set.member` done) dependencies || (dontChaseDependencies options)) $ do
-                isolateM name $ do
+                isolateM (numberOfRetries config) name $ do
                     runTargetWithMonitor (omitMonitors options) (name, node)
                     liftIO $ modifyMVar_ doneTargets (return . insert name)
   where
-    isolateM :: TargetName -> TargetM () -> TargetM ()
-    isolateM target action = if failFast options
+    isolateM :: Int -> TargetName -> TargetM () -> TargetM ()
+    isolateM numberOfRetries target action = if failFast options
         then action
         else do
           result <- isolate action
-          case (retryOnFailure options, result) of
-            (True, IsolateFailure) -> do
+          case (retryOnFailure options, numberOfRetries, result) of
+            (True, n, IsolateFailure) | n > 0 -> do
                 case retryDelay config of
                     Nothing -> do
                         logMessageLn [i|retrying target #{target}|]
                     Just delay -> do
                         logMessageLn [i|retrying target #{target} in #{printf "%f" delay :: String} seconds...|]
                         liftIO $ threadDelay $ round (delay * 10 ^ (6 :: Integer))
-                _ <- isolate action
+                _ <- isolateM (pred numberOfRetries) target action
                 return ()
             _ -> return ()
 
