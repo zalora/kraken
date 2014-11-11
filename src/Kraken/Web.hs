@@ -1,29 +1,29 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds, OverloadedStrings, TypeOperators #-}
 
 module Kraken.Web where
 
 
-import           Control.Applicative
 import           Control.Exception
 import           Control.Monad                (when)
 import           Control.Monad.Trans.Either
 import           Data.ByteString              (ByteString, hGetContents)
 import           Data.Graph.Wrapper
 import           Data.Maybe
+import           Data.Proxy
 import           Data.String.Conversions
 import           Data.Traversable             (forM)
 import           Network.HTTP.Types
 import           Network.Wai                  as Wai
 import           Network.Wai.Handler.Warp.Run
-import           Network.Wai.UrlMap
 import           Servant
+import           Servant.API.Raw
 import           System.Exit
 import           System.IO
 import           System.Process               (CreateProcess (..),
                                                StdStream (..), createProcess,
                                                proc, waitForProcess)
 
-import           Kraken.Daemon
+import           Kraken.Daemon                hiding (server)
 import           Kraken.Dot
 import           Kraken.Web.Config
 import           Kraken.Web.TargetGraph
@@ -32,13 +32,21 @@ import           Kraken.Web.TargetGraph
 run :: IO ()
 run = do
   config <- loadConfig
-  runWarp (Kraken.Web.Config.port config) =<< application (krakenUris config)
+  runWarp (Kraken.Web.Config.port config) (application (krakenUris config))
 
-application :: [BaseUrl] -> IO Application
+application :: [BaseUrl] -> Application
 application krakenUris =
-  return $ mapUrls $
-    mount "targetGraph.pdf" (targetGraph krakenUris Pdf) <|>
-    mount "targetGraph.dot" (targetGraph krakenUris Dot)
+  serve (Proxy :: Proxy WebApi) $
+  server krakenUris
+
+type WebApi =
+       "targetGraph.pdf" :> Raw
+  :<|> "targetGraph.dot" :> Raw
+
+server :: [BaseUrl] -> Server WebApi
+server krakenUris =
+       targetGraph krakenUris Pdf
+  :<|> targetGraph krakenUris Dot
 
 data FileFormat
   = Dot

@@ -72,7 +72,7 @@ openTestSocket = do
 spec :: Spec
 spec =
   around withKrakenDaemon $
-  beforeWith (\ baseUrl -> Kraken.Web.application [baseUrl]) $ do
+  beforeWith (\ baseUrl -> return (Kraken.Web.application [baseUrl])) $ do
     describe "kraken-web" $ do
       it "returns the targetGraph as pdf" $ do
         response <- get "/targetGraph.pdf"
