@@ -16,14 +16,14 @@ import           Data.Graph.Wrapper      as Graph
 import           Data.List               as List (filter, isPrefixOf, nub,
                                                   sortBy)
 import           Data.Maybe
-import           Data.String.Interpolate
+import           Data.String.Interpolate (i)
 import           Prelude                 hiding (any, concat, elem)
-import           Safe
+import           Safe                    (headNote)
 
 import           Kraken.ActionM
 import qualified Kraken.Graph
 import           Kraken.Util
-import qualified Kraken.Web.TargetGraph  as Web
+import qualified Kraken.TargetGraph  as TG
 
 
 data DotNode = DotNode {
@@ -37,8 +37,8 @@ fromNode :: Kraken.Graph.Node -> DotNode
 fromNode (Kraken.Graph.Node _action monitor) =
   DotNode (fmap Kraken.Graph.nodeMonitorName monitor)
 
-fromWebNode :: Web.WebNode -> DotNode
-fromWebNode (Web.WebNode monitor) =
+fromWebNode :: TG.WebNode -> DotNode
+fromWebNode (TG.WebNode monitor) =
   DotNode monitor
 
 
@@ -119,7 +119,7 @@ targetEdges withMonitors graph (name, node) =
             (monitor node)
       else []
   where
-    nodeShape = maybe "oval" (const "box") (monitor node)
+    nodeShape = maybe "ellipse" (const "rect") (monitor node)
     dependencies = successors graph name
 
 mkEdge :: String -> TargetName -> TargetName -> String

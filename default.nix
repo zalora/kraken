@@ -1,9 +1,12 @@
-{ pkgs ? import <nixpkgs> { }
-, src ?  builtins.filterSource (path: type:
+let
+  filterHaskellSource = builtins.filterSource (path: type:
     type != "unknown" &&
     baseNameOf path != ".git" &&
     baseNameOf path != "result" &&
-    baseNameOf path != "dist") ./.
+    baseNameOf path != "dist");
+in
+{ pkgs ? import <nixpkgs> { }
+, src ? filterHaskellSource ./.
 }:
 pkgs.haskellPackages.buildLocalCabalWithArgs {
   inherit src;
@@ -11,4 +14,5 @@ pkgs.haskellPackages.buildLocalCabalWithArgs {
   cabalDrvArgs = {
     buildTools = [ pkgs.graphviz pkgs.file ];
   };
+  args = { };
 }

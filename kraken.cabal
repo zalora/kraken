@@ -9,6 +9,13 @@ category:         Database
 build-type:       Simple
 cabal-version:    >= 1.10
 
+data-files:
+    static/*.html
+  , static/js/*.js
+  , static/js/vendor/*.min.js
+  , static/css/*.css
+
+
 flag network-uri
    description: Get Network.URI from the network-uri package
    default: True
@@ -23,8 +30,9 @@ library
     , configurator
     , containers
     , directory
-    , either
+    , either == 4.3.*
     , enclosed-exceptions
+    , filepath
     , graph-wrapper
     , http-client
     , http-types
@@ -33,11 +41,17 @@ library
     , optparse-applicative >= 0.11
     , process
     , safe
+    , servant
+    , servant-server
+    , servant-docs
+    , servant-client
+    , servant-jquery
     , string-conversions
+    , system-filepath
     , text
     , transformers
     , wai
-    , wai-extra
+    , wai-app-static
     , warp
     , yaml
     , logging-facade
@@ -50,16 +64,20 @@ library
       Kraken.ActionM
       Kraken.Config
       Kraken.Daemon
+      Kraken.Daemon.Internal
       Kraken.Dot
       Kraken.Graph
+      Kraken.Orphans
       Kraken.Run
       Kraken.Store
+      Kraken.TargetGraph
       Kraken.Util
-      Kraken.Orphans
       Kraken.Web
+      Kraken.Web.Client
       Kraken.Web.Config
-      Kraken.Web.TargetGraph
       Network.Wai.Handler.Warp.Run
+  other-modules:
+      Paths_kraken
   default-language:
       Haskell2010
   ghc-options:
@@ -67,40 +85,26 @@ library
       -threaded
 
 executable kraken-web
-  main-is: Kraken/Web/Main.hs
-  hs-source-dirs:
-    src
+  main-is: driver/Main.hs
   build-depends:
-      base
-    , aeson
-    , bytestring
-    , directory
-    , either
-    , enclosed-exceptions
-    , graph-wrapper
-    , http-client
-    , http-types
-    , interpolate
-    , mtl
-    , optparse-applicative >= 0.11
-    , process
-    , safe
-    , string-conversions
-    , transformers
-    , wai
-    , wai-extra
-    , warp
-    , yaml
-    , logging-facade
-  if flag(network-uri)
-    build-depends: network-uri >= 2.6, network >= 2.6
-  else
-    build-depends: network-uri < 2.6, network < 2.6
+      base == 4.*
+    , kraken
   default-language:
       Haskell2010
   ghc-options:
-      -Wall -fno-warn-name-shadowing
-      -threaded
+      -Wall -threaded
+
+executable kraken-example
+  main-is: examples/Example.hs
+  build-depends:
+      base == 4.*
+    , kraken
+    , directory
+    , transformers
+  default-language:
+      Haskell2010
+  ghc-options:
+      -Wall -threaded -main-is Example
 
 test-suite krakenspec
   type:
@@ -108,7 +112,6 @@ test-suite krakenspec
   ghc-options:
       -Wall -fno-warn-name-shadowing
       -threaded
-      -O0
   default-language:
       Haskell2010
   hs-source-dirs:
@@ -123,6 +126,7 @@ test-suite krakenspec
     , containers
     , deepseq
     , directory
+    , either
     , graph-wrapper
     , hspec == 2.*
     , hspec-wai >= 0.6
@@ -135,10 +139,15 @@ test-suite krakenspec
     , QuickCheck >= 2.7
     , quickcheck-instances
     , safe
+    , servant
+    , servant-server
+    , servant-docs
+    , servant-client
     , silently
     , string-conversions
     , temporary
     , transformers
+    , wai
     , wai-extra
     , warp
     , logging-facade

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Example where
+module Example (main) where
 
 
 import           Control.Monad
