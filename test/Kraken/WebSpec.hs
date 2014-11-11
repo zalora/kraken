@@ -6,12 +6,11 @@ module Kraken.WebSpec where
 import           Control.Concurrent
 import           Control.Exception
 import           Data.List
-import           Data.Maybe
 import           Data.String.Conversions
 import           Network.Socket
-import           Network.URI
 import           Network.Wai.Handler.Warp as Warp
 import           Network.Wai.Test
+import           Servant
 import           System.Process
 import           Test.Hspec               hiding (pending)
 import           Test.Hspec.Wai
@@ -32,13 +31,8 @@ store = createStore $
   Target "target.3" ["target.1", "internalTarget.2"] (return ()) Nothing :
   []
 
-config :: Port -> [URI]
-config krakenPort =
-  (fromMaybe (error "error parsing test uri") (parseURI ("http://localhost:" ++ show krakenPort))) :
-  []
-
-withKrakenDaemon :: (Port -> IO a) -> IO a
-withKrakenDaemon action = bracket acquire free (\ (_, _, port) -> action port)
+withKrakenDaemon :: (BaseUrl -> IO a) -> IO a
+withKrakenDaemon action = bracket acquire free (\ (_, _, baseUrl) -> action baseUrl)
  where
   acquire = do
     (notifyStart, waitForStart) <- lvar
@@ -52,7 +46,8 @@ withKrakenDaemon action = bracket acquire free (\ (_, _, port) -> action port)
       Warp.runSettingsSocket settings socket (daemon store))
             `finally` notifyKilled ()
     krakenPort <- waitForStart
-    return (thread, waitForKilled, krakenPort)
+    let baseUrl = (BaseUrl Http "localhost" 80){baseUrlPort = krakenPort}
+    return (thread, waitForKilled, baseUrl)
   free (thread, waitForKilled, _) = do
     killThread thread
     waitForKilled
@@ -77,7 +72,7 @@ openTestSocket = do
 spec :: Spec
 spec =
   around withKrakenDaemon $
-  beforeWith (\ krakenPort -> Kraken.Web.application (config krakenPort)) $ do
+  beforeWith (\ baseUrl -> Kraken.Web.application [baseUrl]) $ do
     describe "kraken-web" $ do
       it "returns the targetGraph as pdf" $ do
         response <- get "/targetGraph.pdf"

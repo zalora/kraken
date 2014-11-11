@@ -33,6 +33,7 @@ library
     , optparse-applicative >= 0.11
     , process
     , safe
+    , servant >= 0.2
     , string-conversions
     , text
     , transformers
@@ -72,6 +73,7 @@ executable kraken-web
       base
     , aeson
     , bytestring
+    , containers
     , directory
     , either
     , enclosed-exceptions
@@ -83,6 +85,7 @@ executable kraken-web
     , optparse-applicative >= 0.11
     , process
     , safe
+    , servant
     , string-conversions
     , transformers
     , wai
@@ -120,6 +123,7 @@ test-suite krakenspec
     , containers
     , deepseq
     , directory
+    , either
     , graph-wrapper
     , hspec2
     , hspec-wai >= 0.5
@@ -132,10 +136,12 @@ test-suite krakenspec
     , QuickCheck >= 2.7
     , quickcheck-instances
     , safe
+    , servant
     , silently
     , string-conversions
     , temporary
     , transformers
+    , wai
     , wai-extra
     , warp
   if flag(network-uri)

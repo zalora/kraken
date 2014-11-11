@@ -8,15 +8,15 @@ import           Control.Exception
 import           Data.String.Conversions
 import           Data.Yaml
 import           GHC.Generics
-import           Network.URI
 import           Network.Wai.Handler.Warp
 import           Options.Applicative
+import           Servant
 import           System.Environment
 
 
 data Config = Config {
   port :: Port,
-  krakenUris :: [URI]
+  krakenUris :: [BaseUrl]
  }
    deriving (Eq, Show, Generic)
 
@@ -24,15 +24,14 @@ instance ToJSON Config
 
 instance FromJSON Config
 
-instance ToJSON URI where
-  toJSON uri = String $ cs $ show uri
+instance ToJSON BaseUrl where
+  toJSON = String . cs . showBaseUrl
 
-instance FromJSON URI where
-  parseJSON (String s) = case parseURI (cs s) of
-    Nothing -> fail ("invalid uri: " ++ cs s)
-    Just uri -> return uri
+instance FromJSON BaseUrl where
+  parseJSON (String s) = case parseBaseUrl (cs s) of
+    Left error -> fail (cs error)
+    Right url -> return url
   parseJSON v = fail ("expected: string, got: " ++ cs (encode v))
-
 
 loadConfig :: IO Config
 loadConfig = do

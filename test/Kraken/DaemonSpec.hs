@@ -88,6 +88,9 @@ appSpec = with (return $ daemon store) $ do
       response <- get "/targetGraph"
       liftIO $ response `shouldSatisfy` isValidJson
 
+    it "returns a 404 for /" $ do
+      get "/" `shouldRespondWith` 404{matchBody = Just "not found"}
+
 isValidJson :: SResponse -> Bool
 isValidJson response =
   simpleStatus response == ok200 &&

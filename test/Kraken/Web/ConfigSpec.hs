@@ -7,9 +7,8 @@ import           Control.DeepSeq
 import           Control.Exception
 import           Data.Aeson
 import           Data.String.Conversions
-import           Network.URI
 import           Network.Wai.Handler.Warp
-import           Safe
+import           Servant
 import           System.Directory
 import           System.Environment
 import           System.IO.Temp
@@ -24,7 +23,7 @@ main = hspec spec
 mkConfig :: Port -> [String] -> Config
 mkConfig port uris = Config {
   port = port,
-  krakenUris = map (fromJustNote "mkConfig: unparseable test URI" . parseURI) uris
+  krakenUris = map (either error id . parseBaseUrl) uris
  }
 
 spec :: Spec
@@ -34,8 +33,8 @@ spec = do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
         withCurrentDirectory dir $ do
           let config = mkConfig 9832 $
-                "http://foo.com/bar" :
-                "http://bla.sg/boo" :
+                "http://foo.com/" :
+                "http://bla.sg/" :
                 []
           writeFile "kraken-web.conf" $ cs $ encode config
           withArgs [] loadConfig `shouldReturn` config
@@ -44,8 +43,8 @@ spec = do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
         withCurrentDirectory dir $ do
           let config = mkConfig 8439 $
-                "http://bar.com/boo" :
-                "http://baz.sg/foo" :
+                "http://bar.com/" :
+                "http://baz.sg/" :
                 []
           writeFile "something.file" $ cs $ encode config
           withArgs (words "--config something.file") loadConfig
