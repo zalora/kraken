@@ -24,6 +24,9 @@ import           Kraken.Web               (application)
 main :: IO ()
 main = hspec spec
 
+staticFilesDir :: FilePath
+staticFilesDir = "static"
+
 store :: Store
 store = createStore $
   Target "target.1" [] (return ()) Nothing :
@@ -72,7 +75,7 @@ openTestSocket = do
 spec :: Spec
 spec =
   around withKrakenDaemon $
-  beforeWith (\ baseUrl -> return (Kraken.Web.application [baseUrl])) $ do
+  beforeWith (\ baseUrl -> return (Kraken.Web.application staticFilesDir [baseUrl])) $ do
     describe "kraken-web" $ do
       it "returns the targetGraph as pdf" $ do
         response <- get "/targetGraph.pdf"
@@ -99,3 +102,8 @@ spec =
           response <- get "/targetGraph.dot?prefix=target.&prefix=internalTarget."
           liftIO $ cs (simpleBody response) `shouldSatisfy` (\ (body :: String) ->
             ("2" `isInfixOf` body))
+
+        it "returns a html page pointing to the targetGraph.pdf on /" $ do
+          response <- get "/"
+          liftIO $ (cs (simpleBody response)
+            `shouldSatisfy` (("targetGraph.pdf" :: String) `isInfixOf`))

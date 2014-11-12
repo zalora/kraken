@@ -9,6 +9,12 @@ category:         Database
 build-type:       Simple
 cabal-version:    >= 1.10
 
+extra-source-files:
+  default.nix
+
+data-files:
+  static/*.html
+
 flag network-uri
    description: Get Network.URI from the network-uri package
    default: True
@@ -25,6 +31,7 @@ library
     , directory
     , either
     , enclosed-exceptions
+    , filepath
     , graph-wrapper
     , http-client
     , http-types
@@ -35,9 +42,11 @@ library
     , safe
     , servant >= 0.2
     , string-conversions
+    , system-filepath
     , text
     , transformers
     , wai
+    , wai-app-static
     , warp
     , yaml
   if flag(network-uri)
@@ -58,6 +67,7 @@ library
       Kraken.Web.Config
       Kraken.Web.TargetGraph
       Network.Wai.Handler.Warp.Run
+      Paths_kraken
   default-language:
       Haskell2010
   ghc-options:
@@ -76,6 +86,7 @@ executable kraken-web
     , directory
     , either
     , enclosed-exceptions
+    , filepath
     , graph-wrapper
     , http-client
     , http-types
@@ -86,8 +97,10 @@ executable kraken-web
     , safe
     , servant
     , string-conversions
+    , system-filepath
     , transformers
     , wai
+    , wai-app-static
     , warp
     , yaml
   if flag(network-uri)
@@ -113,6 +126,20 @@ test-suite krakenspec
       test, examples
   main-is:
       Spec.hs
+  other-modules:
+    ExampleSpec
+    Spec
+    Test.Hspec.Checkers
+    Kraken.ActionMSpec
+    Kraken.StoreSpec
+    Kraken.WebSpec
+    Kraken.GraphSpec
+    Kraken.Web.ConfigSpec
+    Kraken.DaemonSpec
+    Kraken.DotSpec
+    Kraken.RunSpec
+    Kraken.ConfigSpec
+    KrakenSpec
   build-depends:
       base == 4.*
     , aeson
@@ -140,6 +167,7 @@ test-suite krakenspec
     , temporary
     , transformers
     , wai
+    , wai-extra
     , warp
   if flag(network-uri)
     build-depends: network-uri >= 2.6, network >= 2.6

@@ -1,1 +1,1 @@
-:set -isrc -itest -iexamples -packagehspec2
+:set -isrc -itest -iexamples -idist/build/autogen -packagehspec2

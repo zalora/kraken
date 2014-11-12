@@ -11,7 +11,12 @@ import           GHC.Generics
 import           Network.Wai.Handler.Warp
 import           Options.Applicative
 import           Servant
+import           System.Directory
 import           System.Environment
+import           System.FilePath
+import           System.IO
+
+import           Paths_kraken
 
 
 data Config = Config {
@@ -53,3 +58,24 @@ options = strOption
    metavar "FILE" <>
    help "configuration file" <>
    value "kraken-web.conf")
+
+
+-- * dynamic self-configuration
+
+-- | Chooses './static' if that exists, uses cabal's data-files mechanism
+-- otherwise.
+getDocumentRoot :: IO FilePath
+getDocumentRoot = logDocumentRoot $ do
+  staticExists <- doesDirectoryExist "static"
+  if staticExists then return "static"
+  else do
+    cabalDataDir <- getDataDir
+    cabalDataDirExists <- doesDirectoryExist cabalDataDir
+    if cabalDataDirExists
+      then return (cabalDataDir </> "static")
+      else throwIO (ErrorCall "directory for static files not found.")
+ where
+  logDocumentRoot action = do
+    documentRoot <- action
+    hPutStrLn stderr ("serving static files from " ++ documentRoot)
+    return documentRoot

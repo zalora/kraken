@@ -4,26 +4,28 @@ module Kraken.Web where
 
 
 import           Control.Exception
-import           Control.Monad                (when)
+import           Control.Monad                  (when)
 import           Control.Monad.Trans.Either
-import           Data.ByteString              (ByteString, hGetContents)
+import           Data.ByteString                (ByteString, hGetContents)
 import           Data.Graph.Wrapper
 import           Data.Maybe
 import           Data.Proxy
 import           Data.String.Conversions
-import           Data.Traversable             (forM)
+import           Data.Traversable               (forM)
+import           Filesystem.Path.CurrentOS      (decodeString)
 import           Network.HTTP.Types
-import           Network.Wai                  as Wai
+import           Network.Wai                    as Wai
+import           Network.Wai.Application.Static
 import           Network.Wai.Handler.Warp.Run
 import           Servant
 import           Servant.API.Raw
 import           System.Exit
 import           System.IO
-import           System.Process               (CreateProcess (..),
-                                               StdStream (..), createProcess,
-                                               proc, waitForProcess)
+import           System.Process                 (CreateProcess (..),
+                                                 StdStream (..), createProcess,
+                                                 proc, waitForProcess)
 
-import           Kraken.Daemon                hiding (server)
+import           Kraken.Daemon                  hiding (server)
 import           Kraken.Dot
 import           Kraken.Web.Config
 import           Kraken.Web.TargetGraph
@@ -32,21 +34,24 @@ import           Kraken.Web.TargetGraph
 run :: IO ()
 run = do
   config <- loadConfig
-  runWarp (Kraken.Web.Config.port config) (application (krakenUris config))
+  documentRoot <- getDocumentRoot
+  runWarp (Kraken.Web.Config.port config) (application documentRoot (krakenUris config))
 
-application :: [BaseUrl] -> Application
-application krakenUris =
+application :: FilePath -> [BaseUrl] -> Application
+application documentRoot krakenUris =
   serve (Proxy :: Proxy WebApi) $
-  server krakenUris
+  server documentRoot krakenUris
 
 type WebApi =
        "targetGraph.pdf" :> Raw
   :<|> "targetGraph.dot" :> Raw
+  :<|> Raw
 
-server :: [BaseUrl] -> Server WebApi
-server krakenUris =
+server :: FilePath -> [BaseUrl] -> Server WebApi
+server documentRoot krakenUris =
        targetGraph krakenUris Pdf
   :<|> targetGraph krakenUris Dot
+  :<|> serveDirectory documentRoot
 
 data FileFormat
   = Dot
@@ -103,3 +108,6 @@ readProcess path args input = do
   result <- Data.ByteString.hGetContents std_out
   exitCode <- waitForProcess processHandle
   return (exitCode, result)
+
+serveDirectory :: FilePath -> Application
+serveDirectory documentRoot = staticApp (defaultFileServerSettings (decodeString (documentRoot ++ "/")))
