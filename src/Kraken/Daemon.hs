@@ -19,6 +19,7 @@ import           Kraken.Web.TargetGraph
 type DaemonApi =
        "targetGraph" :> Get TargetGraph
   :<|> Get ()
+  :<|> "docs" :> Raw
 
 daemonApi :: Proxy DaemonApi
 daemonApi = Proxy
@@ -34,5 +35,6 @@ daemon store = serve daemonApi (server store)
 
 server :: Store -> Server DaemonApi
 server store =
-  (return $ toTargetGraph $ graph store) :<|>
-  left (404, "not found")
+       (return $ toTargetGraph $ graph store)
+  :<|> left (404, "not found")
+  :<|> serveDocumentation daemonApi

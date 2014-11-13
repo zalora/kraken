@@ -12,13 +12,10 @@ import           Data.Maybe
 import           Data.Proxy
 import           Data.String.Conversions
 import           Data.Traversable               (forM)
-import           Filesystem.Path.CurrentOS      (decodeString)
 import           Network.HTTP.Types
 import           Network.Wai                    as Wai
-import           Network.Wai.Application.Static
 import           Network.Wai.Handler.Warp.Run
 import           Servant
-import           Servant.API.Raw
 import           System.Exit
 import           System.IO
 import           System.Process                 (CreateProcess (..),
@@ -39,18 +36,23 @@ run = do
 
 application :: FilePath -> [BaseUrl] -> Application
 application documentRoot krakenUris =
-  serve (Proxy :: Proxy WebApi) $
+  serve webApi $
   server documentRoot krakenUris
 
 type WebApi =
        "targetGraph.pdf" :> Raw
   :<|> "targetGraph.dot" :> Raw
+  :<|> "docs" :> Raw
   :<|> Raw
+
+webApi :: Proxy WebApi
+webApi = Proxy
 
 server :: FilePath -> [BaseUrl] -> Server WebApi
 server documentRoot krakenUris =
        targetGraph krakenUris Pdf
   :<|> targetGraph krakenUris Dot
+  :<|> serveDocumentation webApi
   :<|> serveDirectory documentRoot
 
 data FileFormat
@@ -108,6 +110,3 @@ readProcess path args input = do
   result <- Data.ByteString.hGetContents std_out
   exitCode <- waitForProcess processHandle
   return (exitCode, result)
-
-serveDirectory :: FilePath -> Application
-serveDirectory documentRoot = staticApp (defaultFileServerSettings (decodeString (documentRoot ++ "/")))
