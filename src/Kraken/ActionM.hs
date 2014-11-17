@@ -30,12 +30,11 @@ module Kraken.ActionM (
 
 
 import           Control.Applicative
-import           Control.Arrow              ((>>>))
 import qualified Control.Exception          as E
 import           Control.Exception.Enclosed
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
-import           Control.Monad.State        (StateT, get, put, runStateT)
+import           Control.Monad.State        (StateT, get, put, modify, runStateT)
 import           Control.Monad.Trans.Either
 import           Data.Monoid
 import           Data.String
@@ -157,7 +156,7 @@ logError msg = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget msg
     logMessage $ showError error
-    get >>= ((++ [error]) >>> put)
+    modify (++ [error])
 
 
 data IsolateResult
