@@ -1,0 +1,3 @@
+[submodule "servant"]
+	path = servant
+	url = https://github.com/alpmestan/servant.git
