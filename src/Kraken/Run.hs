@@ -17,7 +17,7 @@ import           Control.Monad.IO.Class
 import           Data.Configurator.Types  (Config)
 import           Data.Foldable            (forM_)
 import           Data.Graph.Wrapper       as Graph hiding (toList)
-import           Data.List                as List (null, (\\))
+import           Data.List                as List (null, (\\), intercalate)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                 as Set (empty, insert, member)
@@ -85,8 +85,7 @@ runStore opts krakenConfig store = case opts of
             "" :
             "FAILURE" :
             "-------" :
-            (strip $ unlines $ map showError messages) :
-            []
+            map showError messages
         exitWith (ExitFailure 70)
 
 
@@ -97,7 +96,7 @@ runTargets :: RunOptions -> KrakenConfig -> Store -> [TargetName] -> TargetM ()
 runTargets options config store targets = do
     plans <- lookupExecutionPlan store (dontChaseDependencies options) targets
     let executionPlan = filter (not . (`elem` excludeTargets options) . fst) plans
-    logMessage . unlines $
+    logMessageLn . intercalate "\n" $
         "execution plan:" :
         (fmap (("    " ++) . show . fst) executionPlan)
     when (not $ dryRun options) $ do

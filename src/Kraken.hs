@@ -10,7 +10,6 @@ module Kraken (
     Monitor(..),
 
     logMessageLn,
-    logMessage,
   ) where
 
 

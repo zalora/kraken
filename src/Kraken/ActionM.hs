@@ -37,6 +37,7 @@ import           Control.Monad.Reader
 import           Control.Monad.State        (StateT, get, put, modify, runStateT)
 import           Control.Monad.Trans.Either
 import           Data.Monoid
+import           Data.List
 import           Data.String
 import           Data.Typeable
 import           GHC.Generics
@@ -58,7 +59,7 @@ data Error = Error {
     deriving (Eq, Ord, Show)
 
 showError :: Error -> String
-showError (Error mTarget message) = unlines $
+showError (Error mTarget message) = intercalate "\n" $
     ((maybe "<no target>" show mTarget) ++ ":") :
     (fmap ("    " ++) (lines message))
 
@@ -100,7 +101,7 @@ cancel :: String -> ActionM monitorInput a
 cancel msg = ActionM $ do
     target <- ask
     let error = Error target msg
-    logMessage $ showError error
+    logMessageLn $ showError error
     left $ ErrorShortCut error
 
 instance MonadIO (ActionM monitorInput) where
@@ -155,7 +156,7 @@ logError :: String -> ActionM x ()
 logError msg = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget msg
-    logMessage $ showError error
+    logMessageLn $ showError error
     modify (++ [error])
 
 
@@ -173,7 +174,7 @@ isolate action = do
         (runActionM ((maybe id withTargetName currentTarget) action))
         (\ e -> do
             let error = Error (extractTargetName e) (show e)
-            logMessage $ showError error
+            logMessageLn $ showError error
             return $ Left [error])
     case result of
         Right () -> return IsolateSuccess
@@ -213,7 +214,7 @@ triggerTargetInternal :: String -> Maybe monitorInput -> MonitorM monitorInput a
 triggerTargetInternal msg monitorInput = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget ("message from monitor: " ++ msg)
-    logMessage $ showError error
+    logMessageLn $ showError error
     left $ OutDated error monitorInput
 
 discardMonitorInput :: MonitorM monitorInput a -> TargetM a

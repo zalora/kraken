@@ -100,8 +100,7 @@ spec = do
         let store = createStore [Target "foo" [] (cancel "some error") Nothing]
             run = withArgs ["run", "foo"] (runWithExitCode store)
 
-        it "writes error message to stderr twice \
-           \(once during execution and once in a summary at the end)" $ do
+        it "writes error message to stderr twice (once during execution and once in a summary at the end)" $ do
           (output, exitCode) <- hCapture [stderr] run
           exitCode `shouldSatisfy` (/= ExitSuccess)
           output `shouldBe` unlines [
