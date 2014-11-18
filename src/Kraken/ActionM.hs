@@ -45,7 +45,6 @@ import           GHC.Generics
 import           System.Logging.Facade.Class
 import qualified System.Logging.Facade as Log
 
-import           Kraken.Util
 import           Kraken.Orphans ()
 
 newtype TargetName = TargetName String
@@ -181,7 +180,7 @@ isolate action = do
         (runActionM ((maybe id withTargetName currentTarget) action))
         (\ e -> do
             let error = Error (extractTargetName e) (show e)
-            logMessageLn $ showError error
+            Log.info $ showError error
             return $ Left [error])
     case result of
         Right () -> return IsolateSuccess
@@ -221,7 +220,7 @@ triggerTargetInternal :: String -> Maybe monitorInput -> MonitorM monitorInput a
 triggerTargetInternal msg monitorInput = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget ("message from monitor: " ++ msg)
-    logMessageLn $ showError error
+    Log.info $ showError error
     left $ OutDated error monitorInput
 
 discardMonitorInput :: MonitorM monitorInput a -> TargetM a

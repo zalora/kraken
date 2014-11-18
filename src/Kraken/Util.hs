@@ -13,9 +13,6 @@ import           System.IO
 strip :: String -> String
 strip = reverse . dropWhile isSpace . reverse . dropWhile isSpace
 
-logMessageLn :: MonadIO m => String -> m ()
-logMessageLn = liftIO . hPutStrLn stderr
-
 for :: Functor f => f a -> (a -> b) -> f b
 for = flip fmap
 
