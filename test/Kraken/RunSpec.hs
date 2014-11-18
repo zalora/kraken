@@ -64,12 +64,12 @@ spec = do
 
       it "doesn't wait if no delay is given" $ do
         (output, _) <- run retryOptions config =<< retryStore
-        lines output `shouldContain` ["retrying target A"]
+        lines output `shouldContain` ["INFO: retrying target A"]
 
       it "waits the specified delay if given" $ do
         let waitConfig = config {retryDelay = Just 0.01}
         (output, _) <- run retryOptions waitConfig =<< retryStore
-        lines output `shouldContain` ["retrying target A in 0.01 seconds..."]
+        lines output `shouldContain` ["INFO: retrying target A in 0.01 seconds..."]
 
       it "retries n times if specified" $ do
         property $ \ (Positive numberOfFails) (Positive numberOfRetries) -> ioProperty $ do

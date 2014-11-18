@@ -42,11 +42,11 @@ import           Data.String
 import           Data.Typeable
 import           GHC.Generics
 
-import           Kraken.Util
-import           Kraken.Orphans ()
-
+import           System.Logging.Facade.Class
 import qualified System.Logging.Facade as Log
 
+import           Kraken.Util
+import           Kraken.Orphans ()
 
 newtype TargetName = TargetName String
   deriving (Eq, Ord, IsString, Monoid, Generic)
@@ -96,8 +96,9 @@ instance Monad (ActionM monitorInput) where
         let (ActionM b) = f x
         b
     return = ActionM . return
+
     fail msg = do
-        logMessageLn "ActionM.fail is discouraged: please, use cancel"
+        Log.warn "ActionM.fail is discouraged: please, use cancel"
         cancel msg
 
 cancel :: String -> ActionM monitorInput a
@@ -109,6 +110,9 @@ cancel msg = ActionM $ do
 
 instance MonadIO (ActionM monitorInput) where
     liftIO = ActionM . liftIO
+
+instance Logging (ActionM monitorInput) where
+    consumeLogRecord = ActionM . consumeLogRecord
 
 unwrap :: State -> Maybe TargetName -> ActionM monitorInput a -> IO (Either (ShortCut monitorInput) a, State)
 unwrap state currentTarget (ActionM action) =

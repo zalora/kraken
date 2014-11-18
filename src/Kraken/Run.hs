@@ -30,13 +30,14 @@ import           System.Exit
 import           System.IO
 import           Text.Printf
 
+import qualified System.Logging.Facade as Log
+
 import           Kraken.ActionM
 import           Kraken.Config
 import           Kraken.Daemon
 import           Kraken.Dot
 import           Kraken.Graph
 import           Kraken.Store
-import           Kraken.Util
 
 
 -- | Will run a process exposing a command line interface allowing
@@ -69,7 +70,7 @@ runStore opts krakenConfig store = case opts of
         -- KrakenConfig is already parsed.
         -- Checks are already performed by 'createStore'.
         evalStore store
-        logMessageLn "Store is consistent."
+        Log.info "Store is consistent."
     List -> putStr $ unlines $
         fmap show $
         reverse $ topologicalSort $
@@ -96,7 +97,7 @@ runTargets :: RunOptions -> KrakenConfig -> Store -> [TargetName] -> TargetM ()
 runTargets options config store targets = do
     plans <- lookupExecutionPlan store (dontChaseDependencies options) targets
     let executionPlan = filter (not . (`elem` excludeTargets options) . fst) plans
-    logMessageLn . intercalate "\n" $
+    Log.info . intercalate "\n" $
         "execution plan:" :
         (fmap (("    " ++) . show . fst) executionPlan)
     when (not $ dryRun options) $ do
@@ -118,9 +119,9 @@ runTargets options config store targets = do
             (True, n, IsolateFailure) | n > 0 -> do
                 case retryDelay config of
                     Nothing -> do
-                        logMessageLn [i|retrying target #{target}|]
+                        Log.info [i|retrying target #{target}|]
                     Just delay -> do
-                        logMessageLn [i|retrying target #{target} in #{printf "%f" delay :: String} seconds...|]
+                        Log.info [i|retrying target #{target} in #{printf "%f" delay :: String} seconds...|]
                         liftIO $ threadDelay $ round (delay * 10 ^ (6 :: Integer))
                 _ <- isolateM (pred numberOfRetries) target action
                 return ()
@@ -144,7 +145,7 @@ runTargetWithMonitor True target =
     runTarget target
 runTargetWithMonitor False target@(targetName, Node{nodeMonitor = Just (NodeMonitor monitorName monitorAction)}) =
   withTargetName targetName $ do
-    logMessageLn [i|running monitor for #{targetName}|]
+    Log.info [i|running monitor for #{targetName}|]
 
     bracketWithMonitor
         (\ monitorInput -> withTargetName monitorName (monitorAction monitorInput))
@@ -154,7 +155,7 @@ runTargetWithMonitor False target@(targetName, Node{nodeMonitor = Just (NodeMoni
 -- | Runs the target ignoring dependencies and monitors.
 runTarget :: (TargetName, Node) -> TargetM ()
 runTarget (targetName, target) = withTargetName targetName $ do
-    logMessageLn [i|running target #{targetName}|]
+    Log.info [i|running target #{targetName}|]
     nodeAction target
 
 

@@ -21,6 +21,8 @@ import           Test.Hspec
 import           Test.HUnit
 import           Test.QuickCheck
 
+import qualified System.Logging.Facade as Log
+
 import           Kraken                  hiding (catch, runAsMain)
 import qualified Kraken
 import           Kraken.ActionMSpec      (mockStateful)
@@ -104,9 +106,9 @@ spec = do
           (output, exitCode) <- hCapture [stderr] run
           exitCode `shouldSatisfy` (/= ExitSuccess)
           output `shouldBe` unlines [
-              "execution plan:"
+              "INFO: execution plan:"
             , "    foo"
-            , "running target foo"
+            , "INFO: running target foo"
             , "ERROR: foo:"
             , "    some error"
             , ""
@@ -136,9 +138,9 @@ spec = do
 
       context "when given multiple targets with dependencies" $ do
         let store = createStore $
-              Target "A" ["C"] (logMessageLn "executing A") Nothing :
-              Target "B" ["C"] (logMessageLn "executing B") Nothing :
-              Target "C" [] (logMessageLn "executing C") Nothing :
+              Target "A" ["C"] (Log.info "executing A") Nothing :
+              Target "B" ["C"] (Log.info "executing B") Nothing :
+              Target "C" [] (Log.info "executing C") Nothing :
               []
             run :: IO String
             run = hCapture_ [stderr] $ withArgs (words "run A B") $ runAsMain store
@@ -151,13 +153,13 @@ spec = do
         it "does not run one target multiple times" $ do
           result <- lines <$> run
           result `shouldSatisfy` (\ lines ->
-            length (filter (== "executing C") lines) == 1)
+            length (filter (== "INFO: executing C") lines) == 1)
 
       context "when one of multiple targets fails" $ do
         let store errorAction = createStore $
               Target "A" [] errorAction Nothing :
-              Target "B" [] (logMessageLn "executing B") Nothing :
-              Target "C" ["A", "B"] (logMessageLn "executing C") Nothing :
+              Target "B" [] (Log.info "executing B") Nothing :
+              Target "C" ["A", "B"] (Log.info "executing C") Nothing :
               []
         it "runs all targets that don't depend on failing targets" $ do
           (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C") $
@@ -269,11 +271,11 @@ spec = do
 
       context "-e --exclude with multiple targets" $ do
         let store = createStore $
-              Target "A" [] (logMessageLn "executing A") Nothing :
-              Target "B" ["A"] (logMessageLn "executing B") Nothing :
-              Target "C" ["B"] (logMessageLn "executing C") Nothing :
-              Target "D" ["B"] (logMessageLn "executing D") Nothing :
-              Target "E" ["D"] (logMessageLn "executing E") Nothing :
+              Target "A" [] (Log.info "executing A") Nothing :
+              Target "B" ["A"] (Log.info "executing B") Nothing :
+              Target "C" ["B"] (Log.info "executing C") Nothing :
+              Target "D" ["B"] (Log.info "executing D") Nothing :
+              Target "E" ["D"] (Log.info "executing E") Nothing :
               []
             run :: IO String
             run = hCapture_ [stderr] $ withArgs (words "run C E -e D -e A") $ runAsMain store
