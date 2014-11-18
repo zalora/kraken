@@ -107,7 +107,7 @@ spec = do
               "execution plan:"
             , "    foo"
             , "running target foo"
-            , "foo:"
+            , "ERROR: foo:"
             , "    some error"
             , ""
             , "FAILURE"

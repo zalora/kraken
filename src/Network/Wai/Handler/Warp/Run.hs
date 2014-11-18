@@ -9,8 +9,9 @@ import           Data.Foldable
 import           Network.Wai
 import           Network.Wai.Handler.Warp
 import           System.Directory
-import           System.IO
 import           System.Process
+
+import qualified System.Logging.Facade as Log
 
 
 runWarp :: Port -> Application -> IO ()
@@ -19,7 +20,7 @@ runWarp port application = do
         setPort port $
         setBeforeMainLoop (do
           let message = "listening on port " ++ show port
-          hPutStrLn stderr message
+          Log.info message
           systemdNotify message) $
         defaultSettings
   runSettings settings application

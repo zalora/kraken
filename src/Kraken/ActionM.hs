@@ -43,6 +43,9 @@ import           Data.Typeable
 import           GHC.Generics
 
 import           Kraken.Util
+import           Kraken.Orphans ()
+
+import qualified System.Logging.Facade as Log
 
 
 newtype TargetName = TargetName String
@@ -101,7 +104,7 @@ cancel :: String -> ActionM monitorInput a
 cancel msg = ActionM $ do
     target <- ask
     let error = Error target msg
-    logMessageLn $ showError error
+    Log.error $ showError error
     left $ ErrorShortCut error
 
 instance MonadIO (ActionM monitorInput) where
@@ -156,7 +159,7 @@ logError :: String -> ActionM x ()
 logError msg = ActionM $ do
     currentTarget <- ask
     let error = Error currentTarget msg
-    logMessageLn $ showError error
+    Log.error $ showError error
     modify (++ [error])
 
 

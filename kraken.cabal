@@ -40,6 +40,7 @@ library
     , wai-extra
     , warp
     , yaml
+    , logging-facade
   if flag(network-uri)
     build-depends: network-uri >= 2.6, network >= 2.6
   else
@@ -54,6 +55,7 @@ library
       Kraken.Run
       Kraken.Store
       Kraken.Util
+      Kraken.Orphans
       Kraken.Web
       Kraken.Web.Config
       Kraken.Web.TargetGraph
@@ -89,6 +91,7 @@ executable kraken-web
     , wai-extra
     , warp
     , yaml
+    , logging-facade
   if flag(network-uri)
     build-depends: network-uri >= 2.6, network >= 2.6
   else

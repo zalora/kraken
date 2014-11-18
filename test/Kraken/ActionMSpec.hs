@@ -99,7 +99,7 @@ spec = do
             output <- hCapture_ [stderr] $ runActionM $
                 isolate (cancel "foo") >>
                 liftIO (hPutStrLn stderr "bar")
-            output `shouldBe` "<no target>:\n    foo\nbar\n"
+            output `shouldBe` "ERROR: <no target>:\n    foo\nbar\n"
 
         it "prints exceptions to stderr" $ do
             output <- hCapture_ [stderr] $ runActionM (isolate (error "foo"))
