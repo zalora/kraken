@@ -180,7 +180,7 @@ isolate action = do
         (runActionM ((maybe id withTargetName currentTarget) action))
         (\ e -> do
             let error = Error (extractTargetName e) (show e)
-            Log.info $ showError error
+            Log.error $ showError error
             return $ Left [error])
     case result of
         Right () -> return IsolateSuccess
