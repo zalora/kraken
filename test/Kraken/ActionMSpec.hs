@@ -12,6 +12,7 @@ import           Data.List
 import           Data.Monoid
 import           System.IO
 import           System.IO.Silently
+import qualified System.Logging.Facade    as Log
 import           Test.Hspec
 import           Test.Hspec.Checkers
 import           Test.QuickCheck
@@ -19,7 +20,6 @@ import           Test.QuickCheck.Checkers
 import           Test.QuickCheck.Classes
 
 import           Kraken.ActionM
-import           Kraken.Util
 
 
 main :: IO ()
@@ -223,7 +223,7 @@ mockStateful actions = do
 data IsolatedTargetM
     = Cancel String
     | ReturnUnit
-    | LogMessageLn String
+    | LogMessage String
     | TriggerTarget String
     | OutOfDate String Int
 
@@ -234,7 +234,7 @@ unwrap :: IsolatedTargetM -> ActionM Int ()
 unwrap x = void $ isolate $ case x of
     Cancel s -> cancel s
     ReturnUnit -> return ()
-    LogMessageLn s -> logMessageLn s
+    LogMessage s -> Log.info s
     TriggerTarget s -> triggerTarget s
     OutOfDate s n -> outOfDate s n
     (a :>> b) -> unwrap a >> unwrap b
@@ -255,14 +255,14 @@ instance Arbitrary IsolatedTargetM where
     arbitrary = oneof $
         (Cancel <$> arbitrary) :
         (return ReturnUnit) :
-        (LogMessageLn <$> arbitrary) :
+        (LogMessage <$> arbitrary) :
         (TriggerTarget <$> arbitrary) :
         (OutOfDate <$> arbitrary <*> arbitrary) :
         ((:>>) <$> arbitrary <*> arbitrary) :
         []
     shrink (Cancel s) = map Cancel $ shrink s
     shrink ReturnUnit = []
-    shrink (LogMessageLn s) = map LogMessageLn $ shrink s
+    shrink (LogMessage s) = map LogMessage $ shrink s
     shrink (TriggerTarget s) =
         [TriggerTarget s' | s' <- shrink s]
     shrink (OutOfDate s n) =

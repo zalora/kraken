@@ -124,8 +124,8 @@ test-suite krakenspec
     , deepseq
     , directory
     , graph-wrapper
-    , hspec2
-    , hspec-wai >= 0.5
+    , hspec == 2.*
+    , hspec-wai >= 0.6
     , http-client
     , http-types
     , HUnit
@@ -141,6 +141,7 @@ test-suite krakenspec
     , transformers
     , wai-extra
     , warp
+    , logging-facade
   if flag(network-uri)
     build-depends: network-uri >= 2.6, network >= 2.6
   else

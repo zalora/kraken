@@ -2,12 +2,10 @@ module Kraken.Util where
 
 
 import           Control.Exception
-import           Control.Monad.IO.Class
 import           Data.Char
 import           Data.Graph.Wrapper     as Graph
 import           Data.List              as List
 import           Data.Maybe
-import           System.IO
 
 
 strip :: String -> String
