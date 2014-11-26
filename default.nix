@@ -9,8 +9,6 @@ pkgs.haskellPackages.buildLocalCabalWithArgs {
   inherit src;
   name = "kraken";
   cabalDrvArgs = {
-    # The tests don't work, because they expect the 'dot'
-    # executable in the PATH.
-    doCheck = false;
+    buildTools = [ pkgs.graphviz pkgs.file ];
   };
 }
