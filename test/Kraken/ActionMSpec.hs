@@ -75,7 +75,7 @@ spec = do
     describe "mapExceptions" $ do
         it "allows to transform exceptions" $ do
             runActionM (mapExceptions (\ (ErrorCall x) -> ErrorCall (reverse x)) (error "bla"))
-                `shouldThrow` (\ (e :: ErrorCall) -> show e == "alb")
+                `shouldThrow` errorCall "alb"
 
     describe "isolate" $ do
 
