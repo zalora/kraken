@@ -84,6 +84,15 @@ spec =
           fileResult <- readProcess "file" ["-"] (cs $ simpleBody response)
           fileResult `shouldContain` "PDF"
 
+      it "generates markdown documentation for itself" $ do
+        get "docs" `shouldRespondWith` 200
+        response <- get "docs"
+        liftIO $ do
+            let body = cs (simpleBody response)  :: String
+            body `shouldContain` "GET /targetGraph.dot"
+            body `shouldContain` "GET /targetGraph.pdf"
+
+
       context "/targetGraph.dot" $ do
         it "returns the targetGraph as dot" $ do
           response <- get "/targetGraph.dot"

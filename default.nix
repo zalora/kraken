@@ -11,5 +11,7 @@ in
 pkgs.haskellPackages.buildLocalCabalWithArgs {
   inherit src;
   name = "kraken";
-  args = { };
+  cabalDrvArgs = {
+     buildTools = [ pkgs.graphviz pkgs.file ];
+  };
 }
