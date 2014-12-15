@@ -10,7 +10,7 @@ import           Data.Yaml
 import           GHC.Generics
 import           Network.Wai.Handler.Warp
 import           Options.Applicative
-import           Servant
+import           Servant.Client
 import           System.Directory
 import           System.Environment
 import           System.FilePath

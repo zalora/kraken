@@ -8,7 +8,7 @@ import           Control.Exception
 import           Data.Aeson
 import           Data.String.Conversions
 import           Network.Wai.Handler.Warp
-import           Servant
+import           Servant.Client             (parseBaseUrl)
 import           System.Directory
 import           System.Environment
 import           System.IO.Temp

@@ -10,7 +10,7 @@ import           Data.String.Conversions
 import           Network.Socket
 import           Network.Wai.Handler.Warp as Warp
 import           Network.Wai.Test
-import           Servant                  hiding (get)
+import           Servant.Client           (BaseUrl(..), Scheme(..))
 import           System.Process
 import           Test.Hspec               hiding (pending)
 import           Test.Hspec.Wai

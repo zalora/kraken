@@ -9,7 +9,7 @@ import           Control.Applicative
 import           Data.Aeson
 import           Data.Graph.Wrapper
 import           GHC.Generics
-import           Servant
+import           Servant.Docs
 
 import           Kraken.ActionM
 import           Kraken.Graph

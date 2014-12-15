@@ -16,6 +16,7 @@ import           Network.HTTP.Types
 import           Network.Wai                    as Wai
 import           Network.Wai.Handler.Warp.Run
 import           Servant
+import           Servant.Client
 import           System.Exit
 import           System.IO
 import           System.Process                 (CreateProcess (..),
@@ -25,6 +26,7 @@ import           System.Process                 (CreateProcess (..),
 import           Kraken.Daemon                  hiding (server)
 import           Kraken.Dot
 import           Kraken.Web.Config
+import           Kraken.Web.Utils
 import           Kraken.Web.TargetGraph
 
 
