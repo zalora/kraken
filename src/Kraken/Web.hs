@@ -3,12 +3,16 @@
 module Kraken.Web where
 
 
+import           Control.Applicative
+import           Control.Arrow
 import           Control.Exception
 import           Control.Monad                  (when)
-import           Control.Monad.Trans.Either
+import           Control.Monad.Trans.Either     hiding (left)
 import           Data.ByteString                (ByteString, hGetContents)
+import           Data.Either                    (lefts, rights)
 import           Data.Graph.Wrapper
 import           Data.Maybe
+import           Data.List                      (intercalate)
 import           Data.Proxy
 import           Data.String.Conversions
 import           Data.Traversable               (forM)
@@ -28,7 +32,6 @@ import           Kraken.Dot
 import           Kraken.Web.Config
 import           Kraken.Web.Utils
 import           Kraken.Web.TargetGraph
-
 
 run :: IO ()
 run = do
@@ -70,17 +73,25 @@ targetGraph krakenUris fileFormat request respond = do
         map snd $
         filter ((== "prefix") . fst) $
         Wai.queryString request
-  graphParts <- either (throwIO . ErrorCall) return =<<
-    runEitherT (forM krakenUris getTargetGraph)
-  let dot = Kraken.Web.toDot prefixes $ mergeGraphs graphParts
-  case fileFormat of
-    Pdf -> do
-      (exitCode, pdf) <- readProcess "dot" ["-Tpdf"] dot
-      when (exitCode /= ExitSuccess) $
-        throwIO (ErrorCall ("dot exited with: " ++ show exitCode))
-      respond $ responseLBS ok200 [("Content-Type", "application/pdf")] (cs pdf)
-    Dot ->
-      respond $ responseLBS ok200 [("Content-Type", "text/vnd.graphviz")] (cs dot)
+  graphPartsEither <- sequence $ runEitherT . getTargetGraph <$> krakenUris
+  --- Add the erroring uris to the error message
+  let graphPartsWithErr = zipWith (\x -> ((\y -> show x ++ ":\n" ++ y) +++ id))
+          krakenUris graphPartsEither
+  let krakenUrisErr str = respond $ responseLBS status503
+          [("Content-Type", "text/plain")] (cs str)
+  case lefts graphPartsWithErr of
+      xs@(_:_) -> krakenUrisErr $ intercalate "\n\n" xs
+      [] -> do
+        let graphParts = rights graphPartsEither
+        let dot = Kraken.Web.toDot prefixes $ mergeGraphs graphParts
+        case fileFormat of
+          Pdf -> do
+            (exitCode, pdf) <- readProcess "dot" ["-Tpdf"] dot
+            when (exitCode /= ExitSuccess) $
+              throwIO (ErrorCall ("dot exited with: " ++ show exitCode))
+            respond $ responseLBS ok200 [("Content-Type", "application/pdf")] (cs pdf)
+          Dot ->
+            respond $ responseLBS ok200 [("Content-Type", "text/vnd.graphviz")] (cs dot)
 
 mergeGraphs :: [TargetGraph] -> TargetGraph
 mergeGraphs graphs = TargetGraph $ fromListLenient $
