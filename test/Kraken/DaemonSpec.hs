@@ -43,6 +43,7 @@ store :: Store
 store = createStore $
   Target "foo" [] (return ()) Nothing :
   Target "bar" ["foo"] (return ()) Nothing :
+  Target "baz" [] (return ()) (Just (Monitor "baz-monitor" [] $ const $ return ())) :
   []
 
 spec :: Spec
@@ -90,6 +91,9 @@ appSpec = with (return $ daemon store) $ do
 
     it "returns a 404 for /" $ do
       get "/" `shouldRespondWith` 404{matchBody = Just "not found"}
+
+    it "allows monitors to be run" $ do
+      get "/targets/baz/monitor/status" `shouldRespondWith` 200
 
 isValidJson :: SResponse -> Bool
 isValidJson response =

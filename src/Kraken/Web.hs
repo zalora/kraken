@@ -15,7 +15,6 @@ import           Data.Maybe
 import           Data.List                      (intercalate)
 import           Data.Proxy
 import           Data.String.Conversions
-import           Data.Traversable               (forM)
 import           Network.HTTP.Types
 import           Network.Wai                    as Wai
 import           Network.Wai.Handler.Warp.Run
