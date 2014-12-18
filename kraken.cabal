@@ -29,7 +29,7 @@ library
     , configurator
     , containers
     , directory
-    , either
+    , either == 4.3.*
     , enclosed-exceptions
     , filepath
     , graph-wrapper
