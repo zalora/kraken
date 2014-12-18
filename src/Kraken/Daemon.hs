@@ -50,20 +50,23 @@ server store =
            return (toTargetGraph $ graph store)
       :<|> left (404, "not found")
       :<|> serveDocumentation daemonApi
-      :<|> runTargetMonitor
-  where
-    runTargetMonitor :: String -> EitherT (Int, String) IO MonitorStatus
-    runTargetMonitor targetName = do
-        result <- liftIO . runActionM $ lookupTarget store (TargetName targetName)
-        case result of
-            Right (_, node) -> case nodeMonitor node of
-                Nothing -> left (400, "Target does not have associated monitor")
-                Just NodeMonitor{..} -> do
-                    monResult <- liftIO . runActionM $ nodeMonitorAction Nothing
-                    case monResult of
-                        Left err -> return $ MonitorStatus (Err $ show err) Nothing
-                        Right a -> return $ MonitorStatus OK (Just $ show a)
-            Left err -> left (500, show err)
+      :<|> runTargetMonitor store
+
+-- * Endpoint implementations
+
+-- | Try to find and run the monitor for target @targetName@ in the store.
+runTargetMonitor :: Store -> String -> EitherT (Int, String) IO MonitorStatus
+runTargetMonitor store targetName = do
+    result <- liftIO . runActionM $ lookupTarget store (TargetName targetName)
+    case result of
+        Right (_, node) -> case nodeMonitor node of
+            Nothing -> left (400, "Target does not have associated monitor")
+            Just NodeMonitor{..} -> do
+                monResult <- liftIO . runActionM $ nodeMonitorAction Nothing
+                case monResult of
+                    Left err -> return $ MonitorStatus (Err $ show err) Nothing
+                    Right a -> return $ MonitorStatus OK (Just $ show a)
+        Left err -> left (404, show err)
 
 
 

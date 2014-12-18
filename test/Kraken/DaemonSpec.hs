@@ -93,7 +93,14 @@ appSpec = with (return $ daemon store) $ do
       get "/" `shouldRespondWith` 404{matchBody = Just "not found"}
 
     it "allows monitors to be run" $ do
-      get "/target/baz/monitor/status" `shouldRespondWith` 200
+      response <- get "/target/baz/monitor/status"
+      return response `shouldRespondWith` 200
+      let mstatus = decode $ simpleBody response :: Maybe MonitorStatus
+      liftIO $ mstatus `shouldSatisfy` isJust
+      liftIO $ mstatus `shouldBe` (Just $ MonitorStatus OK $ Just "()")
+
+    it "returns 404 for unknown targets" $ do
+      get "/target/unknown/monitor/status" `shouldRespondWith` 404
 
 isValidJson :: SResponse -> Bool
 isValidJson response =
