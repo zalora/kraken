@@ -1,12 +1,14 @@
 {-# LANGUAGE DataKinds, TypeOperators #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Kraken.Daemon where
 
 
 import           Control.Monad.Trans.Either
+import           Control.Monad.IO.Class        (liftIO)
 import           Data.Aeson                    (ToJSON(..), FromJSON(..))
 import           Data.Proxy
 import           GHC.Generics
@@ -16,6 +18,8 @@ import           Servant.API
 import           Servant.Docs
 import           Servant.Server
 
+import           Kraken.ActionM
+import           Kraken.Graph
 import           Kraken.Store
 import           Kraken.Web.TargetGraph
 import           Kraken.Web.Utils
@@ -43,10 +47,25 @@ daemon store = serve daemonApi (server store)
 
 server :: Store -> Server DaemonApi
 server store =
-       (return $ toTargetGraph $ graph store)
-  :<|> left (404, "not found")
-  :<|> serveDocumentation daemonApi
-  :<|> undefined
+           return (toTargetGraph $ graph store)
+      :<|> left (404, "not found")
+      :<|> serveDocumentation daemonApi
+      :<|> runTargetMonitor
+  where
+    runTargetMonitor :: String -> EitherT (Int, String) IO MonitorStatus
+    runTargetMonitor targetName = do
+        result <- liftIO . runActionM $ lookupTarget store (TargetName targetName)
+        case result of
+            Right (_, node) -> case nodeMonitor node of
+                Nothing -> left (400, "Target does not have associated monitor")
+                Just NodeMonitor{..} -> do
+                    monResult <- liftIO . runActionM $ nodeMonitorAction Nothing
+                    case monResult of
+                        Left err -> return $ MonitorStatus (Err $ show err) Nothing
+                        Right a -> return $ MonitorStatus OK (Just $ show a)
+            Left err -> left (500, show err)
+
+
 
 -- * API-related types
 
