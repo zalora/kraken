@@ -89,3 +89,4 @@ toGraph targets = do
         is -> Left $ unlines $
             "cycles in target graph:" :
             fmap (unwords . (fmap show)) is
+

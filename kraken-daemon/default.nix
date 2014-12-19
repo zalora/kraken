@@ -10,8 +10,7 @@ in
 }:
 pkgs.haskellPackages.buildLocalCabalWithArgs {
   inherit src;
-  name = "kraken";
-  cabalDrvArgs = {
-     buildTools = [ pkgs.graphviz pkgs.file ];
-  };
+  name = "kraken-daemon";
+  args = {
+      kraken = import ../kraken {};
 }

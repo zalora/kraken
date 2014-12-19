@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Kraken.Daemon where
+module Kraken.Daemon.Internal where
 
 
 import           Control.Monad.Trans.Either
@@ -13,7 +13,6 @@ import           Data.Aeson                    (ToJSON(..), FromJSON(..))
 import           Data.Proxy
 import           GHC.Generics
 import           Network.Wai
-import           Network.Wai.Handler.Warp.Run
 import           Servant.API
 import           Servant.Docs
 import           Servant.Server
@@ -21,8 +20,6 @@ import           Servant.Server
 import           Kraken.ActionM
 import           Kraken.Graph
 import           Kraken.Store
-import           Kraken.Web.TargetGraph
-import           Kraken.Web.Utils
 
 
 -- * API definition
@@ -69,7 +66,6 @@ runTargetMonitor store targetName = do
         Left err -> left (404, show err)
 
 
-
 -- * API-related types
 
 data MonitorStatus =
@@ -94,3 +90,73 @@ data Status = OK
 instance ToJSON Status
 instance FromJSON Status
 
+
+-- * Target graphs
+
+data WebNode = WebNode {
+  monitor :: Maybe TargetName
+ }
+  deriving (Generic)
+
+toWebNode :: Node -> WebNode
+toWebNode node =
+  WebNode (fmap nodeMonitorName (Kraken.Graph.nodeMonitor node))
+
+instance FromJSON WebNode
+instance ToJSON WebNode
+
+instance FromJSON TargetName
+instance ToJSON TargetName
+
+
+newtype TargetGraph = TargetGraph (Graph TargetName WebNode)
+  deriving (Generic)
+
+instance FromJSON TargetGraph where
+  parseJSON value = TargetGraph <$> fromListLenient <$> parseJSON value
+
+instance ToJSON TargetGraph where
+  toJSON (TargetGraph g) = toJSON $ toList g
+
+instance ToSample TargetGraph where
+  toSample = Just $ TargetGraph $ fromListLenient $
+    ("a", WebNode (Just "a.monitor"), []) :
+    ("b", WebNode Nothing, []) :
+    ("c", WebNode (Just "c.monitor"), ["a", "b"]) :
+    ("a.monitor", WebNode Nothing, []) :
+    ("c.monitor", WebNode Nothing, []) :
+    []
+
+
+toTargetGraph :: Graph TargetName Node -> TargetGraph
+toTargetGraph = TargetGraph . fmap toWebNode
+
+-- | Create an application that simply serves the markdown documentation of
+-- an API.
+serveDocumentation :: HasDocs layout => Proxy layout -> Application
+serveDocumentation api _ respond = respond $ responseLBS status200 [] md
+    where
+        md = cs . markdown $ docs api
+
+-- | Run an application, logging port to systemd
+runWarp :: Port -> Application -> IO ()
+runWarp port application = do
+  let settings =
+        setPort port $
+        setBeforeMainLoop (do
+          let message = "listening on port " ++ show port
+          hPutStrLn stderr message
+          systemdNotify message) $
+        defaultSettings
+  runSettings settings application
+
+systemdNotify :: String -> IO ()
+systemdNotify message = do
+  mExecutable <- findExecutable "systemd-notify"
+  forM_ mExecutable $ \ executable -> do
+    process <- spawnProcess executable $
+      "--ready" :
+      ("--status=" ++ message ++ "") :
+      []
+    _ <- waitForProcess process
+    return ()

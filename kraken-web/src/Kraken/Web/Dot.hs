@@ -23,7 +23,7 @@ import           Safe
 import           Kraken.ActionM
 import qualified Kraken.Graph
 import           Kraken.Util
-import qualified Kraken.Web.TargetGraph  as Web
+import qualified Kraken.TargetGraph  as TG
 
 
 data DotNode = DotNode {
@@ -37,8 +37,8 @@ fromNode :: Kraken.Graph.Node -> DotNode
 fromNode (Kraken.Graph.Node _action monitor) =
   DotNode (fmap Kraken.Graph.nodeMonitorName monitor)
 
-fromWebNode :: Web.WebNode -> DotNode
-fromWebNode (Web.WebNode monitor) =
+fromWebNode :: TG.WebNode -> DotNode
+fromWebNode (TG.WebNode monitor) =
   DotNode monitor
 
 

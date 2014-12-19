@@ -32,15 +32,13 @@ import           Text.Printf
 
 import           Kraken.ActionM
 import           Kraken.Config
-import           Kraken.Daemon
-import           Kraken.Dot
 import           Kraken.Graph
 import           Kraken.Store
 import           Kraken.Util
 
 
 -- | Will run a process exposing a command line interface allowing
--- to do diffirent things with the given store:
+-- to do different things with the given store:
 --
 -- - list available targets
 -- - run creation/monitoring operations for targets
@@ -74,10 +72,10 @@ runStore opts krakenConfig store = case opts of
         fmap show $
         reverse $ topologicalSort $
         graph store
-    Dot withMonitors prefixes transitiveReduction ->
-        putStr $ toDot withMonitors prefixes transitiveReduction $
-          fmap Kraken.Dot.fromNode $ graph store
-    Daemon port -> runDaemon port store
+    {-Dot withMonitors prefixes transitiveReduction ->-}
+        {-putStr $ toDot withMonitors prefixes transitiveReduction $-}
+          {-fmap Kraken.Dot.fromNode $ graph store-}
+    {-Daemon port -> runDaemon port store-}
   where
     reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
@@ -305,3 +303,4 @@ options description =
           long "exclude" <>
           metavar "TARGET" <>
           help "Targets to be excluded")
+

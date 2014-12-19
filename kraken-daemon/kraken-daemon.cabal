@@ -8,12 +8,14 @@ license-file:     LICENSE
 category:         Database
 build-type:       Simple
 cabal-version:    >= 1.10
+description:
+    This package provides the means of defining and running `Target`s.
+    .
+    See the accompanying README for more info.
 
 extra-source-files:
   default.nix
 
-data-files:
-  static/*.html
 
 flag network-uri
    description: Get Network.URI from the network-uri package
@@ -42,16 +44,15 @@ library
     , safe
     , servant
     , servant-server
-    , servant-docs
     , servant-client
+    , servant-docs
     , string-conversions
     , system-filepath
     , text
     , transformers
-    , wai
-    , wai-app-static
-    , warp
     , yaml
+    , wai
+    , warp
   if flag(network-uri)
     build-depends: network-uri >= 2.6, network >= 2.6
   else
@@ -66,54 +67,7 @@ library
       Kraken.Run
       Kraken.Store
       Kraken.Util
-      Kraken.Web
-      Kraken.Web.Config
-      Kraken.Web.Utils
-      Kraken.Web.TargetGraph
-      Network.Wai.Handler.Warp.Run
       Paths_kraken
-  default-language:
-      Haskell2010
-  ghc-options:
-      -Wall -fno-warn-name-shadowing
-      -threaded
-
-executable kraken-web
-  main-is: Kraken/Web/Main.hs
-  hs-source-dirs:
-    src
-  build-depends:
-      base
-    , aeson
-    , bytestring
-    , containers
-    , directory
-    , either
-    , enclosed-exceptions
-    , filepath
-    , graph-wrapper
-    , http-client
-    , http-types
-    , interpolate
-    , mtl
-    , optparse-applicative >= 0.11
-    , process
-    , safe
-    , servant
-    , servant-server
-    , servant-docs
-    , servant-client
-    , string-conversions
-    , system-filepath
-    , transformers
-    , wai
-    , wai-app-static
-    , warp
-    , yaml
-  if flag(network-uri)
-    build-depends: network-uri >= 2.6, network >= 2.6
-  else
-    build-depends: network-uri < 2.6, network < 2.6
   default-language:
       Haskell2010
   ghc-options:
@@ -139,9 +93,7 @@ test-suite krakenspec
     Test.Hspec.Checkers
     Kraken.ActionMSpec
     Kraken.StoreSpec
-    Kraken.WebSpec
     Kraken.GraphSpec
-    Kraken.Web.ConfigSpec
     Kraken.DaemonSpec
     Kraken.DotSpec
     Kraken.RunSpec
