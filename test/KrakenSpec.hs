@@ -111,11 +111,12 @@ spec = do
             , "INFO: running target foo"
             , "ERROR: foo:"
             , "    some error"
-            , ""
+            , "INFO: "
             , "FAILURE"
             , "-------"
             , "foo:"
             , "    some error"
+            , ""
             ]
 
         it "exits with ExitFailure 70 (internal software error)" $ do

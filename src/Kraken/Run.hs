@@ -27,7 +27,6 @@ import           Options.Applicative      hiding (action)
 import           Prelude                  hiding (mapM)
 import           Safe
 import           System.Exit
-import           System.IO
 import           Text.Printf
 
 import qualified System.Logging.Facade as Log
@@ -82,7 +81,7 @@ runStore opts krakenConfig store = case opts of
   where
     reportAndExit :: [Error] -> IO ()
     reportAndExit messages = do
-        hPutStr stderr $ unlines $
+        Log.info . unlines $
             "" :
             "FAILURE" :
             "-------" :
