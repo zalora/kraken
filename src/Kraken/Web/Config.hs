@@ -16,7 +16,7 @@ import           System.Environment
 
 data Config = Config {
   port :: Port,
-  krakenUris :: [URI]
+  krakenUri :: URI
  }
    deriving (Eq, Show, Generic)
 
