@@ -21,10 +21,10 @@ import           Kraken.Web.Config
 main :: IO ()
 main = hspec spec
 
-mkConfig :: Port -> [String] -> Config
-mkConfig port uris = Config {
+mkConfig :: Port -> String -> Config
+mkConfig port uri = Config {
   port = port,
-  krakenUris = map (fromJustNote "mkConfig: unparseable test URI" . parseURI) uris
+  krakenUri = fromJustNote "mkConfig: unparseable test URI" $ parseURI uri
  }
 
 spec :: Spec
@@ -33,20 +33,14 @@ spec = do
     it "loads from kraken-web.conf by default" $ do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
         withCurrentDirectory dir $ do
-          let config = mkConfig 9832 $
-                "http://foo.com/bar" :
-                "http://bla.sg/boo" :
-                []
+          let config = mkConfig 9832 "http://foo.com/bar"
           writeFile "kraken-web.conf" $ cs $ encode config
           withArgs [] loadConfig `shouldReturn` config
 
     it "loads from a file given by --config" $ do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
         withCurrentDirectory dir $ do
-          let config = mkConfig 8439 $
-                "http://bar.com/boo" :
-                "http://baz.sg/foo" :
-                []
+          let config = mkConfig 8439 "http://bar.com/boo"
           writeFile "something.file" $ cs $ encode config
           withArgs (words "--config something.file") loadConfig
             `shouldReturn` config

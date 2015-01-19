@@ -32,10 +32,8 @@ store = createStore $
   Target "target.3" ["target.1", "internalTarget.2"] (return ()) Nothing :
   []
 
-config :: Port -> [URI]
-config krakenPort =
-  (fromMaybe (error "error parsing test uri") (parseURI ("http://localhost:" ++ show krakenPort))) :
-  []
+config :: Port -> URI
+config krakenPort = fromMaybe (error "error parsing test uri") (parseURI ("http://localhost:" ++ show krakenPort))
 
 withKrakenDaemon :: (Port -> IO a) -> IO a
 withKrakenDaemon action = bracket acquire free (\ (_, _, port) -> action port)

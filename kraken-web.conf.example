@@ -1,6 +1,4 @@
 
 port: 8080
 
-krakenUris:
-  - http://example.com/
-  - http://localhost:10000
+krakenUri: http://example.com/

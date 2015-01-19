@@ -32,20 +32,20 @@ import           Kraken.Web.TargetGraph
 run :: IO ()
 run = do
   config <- loadConfig
-  runWarp (Kraken.Web.Config.port config) =<< application (krakenUris config)
+  runWarp (Kraken.Web.Config.port config) =<< application (krakenUri config)
 
-application :: [URI] -> IO Application
-application krakenUris = Client.withManager Client.defaultManagerSettings $ \ manager ->
+application :: URI -> IO Application
+application krakenUri = Client.withManager Client.defaultManagerSettings $ \ manager ->
   return $ mapUrls $
-    mount "targetGraph.pdf" (targetGraph krakenUris manager Pdf) <|>
-    mount "targetGraph.dot" (targetGraph krakenUris manager Dot)
+    mount "targetGraph.pdf" (targetGraph krakenUri manager Pdf) <|>
+    mount "targetGraph.dot" (targetGraph krakenUri manager Dot)
 
 data FileFormat
   = Dot
   | Pdf
 
-targetGraph :: [URI] -> Manager -> FileFormat -> Application
-targetGraph krakenUris manager fileFormat request respond = do
+targetGraph :: URI -> Manager -> FileFormat -> Application
+targetGraph krakenUri manager fileFormat request respond = do
   let prefixes =
         (\ xs -> if null xs then Nothing else Just xs) $
         map cs $
@@ -53,9 +53,8 @@ targetGraph krakenUris manager fileFormat request respond = do
         map snd $
         filter ((== "prefix") . fst) $
         Wai.queryString request
-  graphParts <- forM krakenUris $ \ uri ->
-    getValue manager uri
-  let dot = Kraken.Web.toDot prefixes $ mergeGraphs graphParts
+  graphParts <- getValue manager krakenUri
+  let dot = Kraken.Web.toDot prefixes graphParts
   case fileFormat of
     Pdf -> do
       (exitCode, pdf) <- readProcess "dot" ["-Tpdf"] dot
@@ -74,10 +73,6 @@ getValue manager uri = do
     throwIO $ ErrorCall ("kraken daemon returned: " ++ show (Client.responseStatus innerResponse))
   maybe (throwIO (ErrorCall "kraken daemon returned invalid json")) return $
     decode' (Client.responseBody innerResponse)
-
-mergeGraphs :: [TargetGraph] -> TargetGraph
-mergeGraphs graphs = TargetGraph $ fromListLenient $
-  concatMap (\ (TargetGraph g) -> toList g) graphs
 
 toDot :: Maybe [String] -> TargetGraph -> String
 toDot prefixes (TargetGraph g) = Kraken.Dot.toDot False prefixes True (fmap Kraken.Dot.fromWebNode g)
