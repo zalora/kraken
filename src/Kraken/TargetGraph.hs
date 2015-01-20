@@ -1,15 +1,17 @@
-{-# LANGUAGE DeriveGeneric, FlexibleInstances, StandaloneDeriving #-}
+{-# LANGUAGE DeriveGeneric, FlexibleInstances, OverloadedStrings,
+             StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Kraken.Web.TargetGraph where
+module Kraken.TargetGraph where
 
 
 import           Control.Applicative
-import           Data.Aeson
+import           Data.Aeson           (ToJSON(..), FromJSON(..))
 import           Data.Graph.Wrapper
-import           GHC.Generics
+import           GHC.Generics         (Generic)
+import           Servant.Docs
 
-import           Kraken.ActionM
+import           Kraken.ActionM       (TargetName)
 import           Kraken.Graph
 
 
@@ -37,6 +39,16 @@ instance FromJSON TargetGraph where
 
 instance ToJSON TargetGraph where
   toJSON (TargetGraph g) = toJSON $ toList g
+
+instance ToSample TargetGraph where
+  toSample = Just $ TargetGraph $ fromListLenient $
+    ("a", WebNode (Just "a.monitor"), []) :
+    ("b", WebNode Nothing, []) :
+    ("c", WebNode (Just "c.monitor"), ["a", "b"]) :
+    ("a.monitor", WebNode Nothing, []) :
+    ("c.monitor", WebNode Nothing, []) :
+    []
+
 
 toTargetGraph :: Graph TargetName Node -> TargetGraph
 toTargetGraph = TargetGraph . fmap toWebNode

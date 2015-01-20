@@ -7,9 +7,8 @@ import           Control.DeepSeq
 import           Control.Exception
 import           Data.Aeson
 import           Data.String.Conversions
-import           Network.URI
 import           Network.Wai.Handler.Warp
-import           Safe
+import           Servant.Client             (parseBaseUrl)
 import           System.Directory
 import           System.Environment
 import           System.IO.Temp
@@ -24,7 +23,7 @@ main = hspec spec
 mkConfig :: Port -> String -> Config
 mkConfig port uri = Config {
   port = port,
-  krakenUri = fromJustNote "mkConfig: unparseable test URI" $ parseURI uri
+  krakenUri = either error id $ parseBaseUrl uri
  }
 
 spec :: Spec
@@ -33,14 +32,14 @@ spec = do
     it "loads from kraken-web.conf by default" $ do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
         withCurrentDirectory dir $ do
-          let config = mkConfig 9832 "http://foo.com/bar"
+          let config = mkConfig 9832 "http://foo.com/"
           writeFile "kraken-web.conf" $ cs $ encode config
           withArgs [] loadConfig `shouldReturn` config
 
     it "loads from a file given by --config" $ do
       withSystemTempDirectory "kraken-test" $ \ dir -> do
         withCurrentDirectory dir $ do
-          let config = mkConfig 8439 "http://bar.com/boo"
+          let config = mkConfig 8439 "http://bar.com/"
           writeFile "something.file" $ cs $ encode config
           withArgs (words "--config something.file") loadConfig
             `shouldReturn` config

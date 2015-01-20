@@ -19,7 +19,8 @@ import           System.IO.Silently
 import           Test.Hspec
 import           Test.Hspec.Wai
 
-import           Kraken.Daemon
+import           Kraken.ActionM          (cancel)
+import           Kraken.Daemon.Internal
 import           Kraken.Graph
 import           Kraken.Run              as Kraken
 import           Kraken.Store
@@ -43,6 +44,8 @@ store :: Store
 store = createStore $
   Target "foo" [] (return ()) Nothing :
   Target "bar" ["foo"] (return ()) Nothing :
+  Target "baz" [] (return ()) (Just (Monitor "baz-monitor" [] $ const $ return ())) :
+  Target "kaboom" [] (return ()) (Just $ Monitor "kaboom-monitor" [] $ const $ cancel "an error") :
   []
 
 spec :: Spec
@@ -84,9 +87,33 @@ spec = do
 
 appSpec :: Spec
 appSpec = with (return $ daemon store) $ do
-    it "returns valid JSON under /targetGraph" $ do
-      response <- get "/targetGraph"
-      liftIO $ response `shouldSatisfy` isValidJson
+
+  it "returns valid JSON under /targetGraph" $ do
+    response <- get "/targetGraph"
+    liftIO $ response `shouldSatisfy` isValidJson
+
+  describe "target monitor endpoint" $ do
+
+    it "allows monitors to be run" $ do
+      response <- get "/target/baz/monitor/run"
+      return response `shouldRespondWith` 200
+      let mstatus = decode $ simpleBody response :: Maybe MonitorStatus
+      liftIO $ mstatus `shouldSatisfy` isJust
+      liftIO $ mstatus `shouldBe` (Just $ MonitorStatus OK $ Just "()")
+
+    it "returns 404 for unknown targets" $ do
+      get "/target/unknown/monitor/run" `shouldRespondWith` 404
+
+    context "when the target does not have a monitor" $ do
+      it "returns 400" $ do
+        get "/target/bar/monitor/run" `shouldRespondWith` 400
+
+    context "when the monitor fails" $ do
+      it "returns an error in MonitorStatus" $ do
+        response <- get "/target/kaboom/monitor/run"
+        return response `shouldRespondWith` 200
+        let Just (MonitorStatus (Err err) _) = decode $ simpleBody response
+        liftIO $ err `shouldContain` "an error"
 
 isValidJson :: SResponse -> Bool
 isValidJson response =

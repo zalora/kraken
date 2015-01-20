@@ -9,7 +9,7 @@ import           Data.List               as List (foldl', group, isPrefixOf,
 import           Data.Maybe
 import           Data.Set                as Set (Set, fromList, isSubsetOf,
                                                  member, union, (\\))
-import           Data.String.Interpolate
+import           Data.String.Interpolate (i)
 import           Data.Traversable        (forM)
 import           Options.Applicative     hiding (action)
 

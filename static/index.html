@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Kraken Web</title>
+
+    <!-- <link rel="stylesheet" href="stylesheets/pygment_trac.css">-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <script src="js/vendor/jquery-2.1.3.min.js"></script>
+    <script src="js/vendor/graphlib-dot.min.js"></script>
+    <script src="js/vendor/dagre-d3.min.js"></script>
+    <script src="js/kraken-web-client.js"></script>
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap-theme.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+
+    <link href="css/style.css" rel="stylesheet"/>
+  </head>
+  <body>
+  <nav class="navbar">
+      <div class="container-fluid">
+          <div class="navbar-header">
+              <h1>kraken-web</h2>
+          </div>
+          <ul class="nav navbar-nav">
+              <li> <a href="/targetGraph.pdf">PDF</a> </li>
+              <li> <a href="/targetGraph.dot">Dot</a> </li>
+          </ul>
+      </div>
+  </nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-6 col-md-offset-3">
+            <svg id="graphContainer" class="main-graph">
+                <g/>
+            </svg>
+        </div>
+        <div class="col-md-3"></div>
+    </div>
+    <div class="row">
+        <div class="col-md-4 col-md-offset-3">
+            <p class="lead"> The graph above represents the targets, and the connections
+                between targets, of the known kraken daemons.  </p>
+            <p class="lead"> Click on a target to run the monitor associated with that
+                target (if there is one). </p>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="monitor-modal" role="dialog" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="monitor-label">Monitor Status</h4>
+      </div>
+      <div class="modal-body">
+          <li>
+            <p id="running-monitor">Running monitor</p>
+            <ul id="monitor-status"></ul>
+            <ul id="monitor-result"></ul>
+          </li>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+</div>
+</body>
+
+<script>
+var renderer = new dagreD3.render();
+
+var modalWait = function() {
+    $("#running-monitor").show();
+    $("#monitor-status").hide();
+    $("#monitor-result").hide();
+    $("#monitor-modal").modal('show');
+}
+
+var modalDone = function(resp) {
+    $("#running-monitor").hide();
+    $("#monitor-status").html(resp["status"]["contents"]).show();
+    $("#monitor-result").html(resp["result"]).show();
+}
+
+var attachOnClicks = function(graph) {
+    $.each(graph._nodes, function(k,v) {
+        $(v["elem"]).click(function() {
+            modalWait();
+            getrunmonitortarget(k, function(ret) {
+                console.log(ret);
+                modalDone(ret);
+            });
+        });
+    });
+}
+
+var dotDigraph;
+
+var buildGraph = function(dotData) {
+    // Remove dot-things that break dagre
+    console.log(dotData);
+    dotDigraph = graphlibDot.read(dotData);
+    d3.select("svg g").call(renderer, dotDigraph);
+
+    attachOnClicks(dotDigraph);
+
+    // Center the graph
+    var svgGroup = d3.select("svg g");
+    var xCenterOffset = (600 - dotDigraph.graph().width) / 2;
+    svgGroup.attr("transform", "translate(" + xCenterOffset + ", 20)");
+};
+
+targetGraph_dot(buildGraph, function() { console.log("Error fetching dot file"); })
+</script>
+
+</html>

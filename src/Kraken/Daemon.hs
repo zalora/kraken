@@ -1,34 +1,14 @@
-{-# LANGUAGE FlexibleInstances, OverloadedStrings, RankNTypes #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+-- | Since this module is meant to be imported by client libraries (in
+-- particular, kraken-web), it re-exports only the relevant subset of
+-- 'Kraken.Daemon.Internal' to allay fears of tight coupling.
+module Kraken.Daemon (
+   -- * API
+   DaemonApi
+   , daemonApi
+   -- * API types
+   , MonitorStatus(..)
+   , Status(..)
+   , Documentation(..)
+   ) where
 
-module Kraken.Daemon where
-
-
-import           Data.Aeson
-import           Network.HTTP.Types
-import           Network.Wai
-import           Network.Wai.Handler.Warp.Run
-import           Network.Wai.UrlMap
-
-import           Kraken.Store
-import           Kraken.Web.TargetGraph
-
-
-runDaemon :: Port -> Store -> IO ()
-runDaemon port store = runWarp port (daemon store)
-
-daemon :: Store -> Application
-daemon store = mapUrls $
-  mount "targetGraph" (jsonApplication (targetGraph store))
-
-type JsonApplication =
-  Request -> (Value -> IO ResponseReceived) -> IO ResponseReceived
-
-
-jsonApplication :: JsonApplication -> Application
-jsonApplication app request respond =
-  app request (respond . responseLBS ok200 [("Content-Type", "application/json")] . encode)
-
-targetGraph :: Store -> JsonApplication
-targetGraph store _ respond = do
-  respond (toJSON (toTargetGraph $ graph store))
+import Kraken.Daemon.Internal

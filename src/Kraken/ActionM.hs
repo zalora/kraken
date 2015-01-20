@@ -31,16 +31,15 @@ module Kraken.ActionM (
 
 import           Control.Applicative
 import qualified Control.Exception          as E
-import           Control.Exception.Enclosed
-import           Control.Monad.IO.Class
+import           Control.Exception.Enclosed (catchAny)
 import           Control.Monad.Reader
 import           Control.Monad.State        (StateT, get, put, modify, runStateT)
 import           Control.Monad.Trans.Either
 import           Data.Monoid
 import           Data.List
-import           Data.String
-import           Data.Typeable
-import           GHC.Generics
+import           Data.String                (IsString)
+import           Data.Typeable              (Typeable, cast)
+import           GHC.Generics               (Generic)
 
 import           System.Logging.Facade.Class
 import qualified System.Logging.Facade as Log

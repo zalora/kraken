@@ -8,15 +8,20 @@ import           Control.Exception
 import           Data.String.Conversions
 import           Data.Yaml
 import           GHC.Generics
-import           Network.URI
 import           Network.Wai.Handler.Warp
 import           Options.Applicative
+import           Servant.Client
+import           System.Directory
 import           System.Environment
+import           System.FilePath
+import           System.IO
+
+import           Paths_kraken
 
 
 data Config = Config {
   port :: Port,
-  krakenUri :: URI
+  krakenUri :: BaseUrl
  }
    deriving (Eq, Show, Generic)
 
@@ -24,15 +29,14 @@ instance ToJSON Config
 
 instance FromJSON Config
 
-instance ToJSON URI where
-  toJSON uri = String $ cs $ show uri
+instance ToJSON BaseUrl where
+  toJSON = String . cs . showBaseUrl
 
-instance FromJSON URI where
-  parseJSON (String s) = case parseURI (cs s) of
-    Nothing -> fail ("invalid uri: " ++ cs s)
-    Just uri -> return uri
+instance FromJSON BaseUrl where
+  parseJSON (String s) = case parseBaseUrl (cs s) of
+    Left error -> fail (cs error)
+    Right url -> return url
   parseJSON v = fail ("expected: string, got: " ++ cs (encode v))
-
 
 loadConfig :: IO Config
 loadConfig = do
@@ -54,3 +58,24 @@ options = strOption
    metavar "FILE" <>
    help "configuration file" <>
    value "kraken-web.conf")
+
+
+-- * dynamic self-configuration
+
+-- | Chooses './static' if that exists, uses cabal's data-files mechanism
+-- otherwise.
+getDocumentRoot :: IO FilePath
+getDocumentRoot = logDocumentRoot $ do
+  staticExists <- doesDirectoryExist "static"
+  if staticExists then return "static"
+  else do
+    cabalDataDir <- getDataDir
+    cabalDataDirExists <- doesDirectoryExist cabalDataDir
+    if cabalDataDirExists
+      then return (cabalDataDir </> "static")
+      else throwIO (ErrorCall "directory for static files not found.")
+ where
+  logDocumentRoot action = do
+    documentRoot <- action
+    hPutStrLn stderr ("serving static files from " ++ documentRoot)
+    return documentRoot
