@@ -14,7 +14,6 @@ module Kraken.Run (
 import           Control.Concurrent
 import           Control.Monad            (when)
 import           Control.Monad.IO.Class
-import           Data.Configurator.Types  (Config)
 import           Data.Foldable            (forM_)
 import           Data.Graph.Wrapper       as Graph hiding (toList)
 import           Data.List                as List (null, (\\), intercalate)
@@ -22,6 +21,7 @@ import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                 as Set (empty, insert, member)
 import           Data.String.Interpolate
+import           Data.Aeson.Types (FromJSON)
 import           Network.Wai.Handler.Warp hiding (cancel)
 import           Options.Applicative      hiding (action)
 import           Prelude                  hiding (mapM)
@@ -50,7 +50,8 @@ runAsMain description store = do
     (options, _) <- execParser (options description)
     runStore options defaultKrakenConfig store
 
-runAsMainWithCustomConfig :: String -> FilePath -> ((FilePath, Config) -> IO Store) -> IO ()
+runAsMainWithCustomConfig :: FromJSON a => String -> FilePath
+                          -> ((FilePath, a) -> IO Store) -> IO ()
 runAsMainWithCustomConfig description defaultConfigFile mkStore = do
     (options, mConfigFile) <- execParser (options description)
     let configFile = fromMaybe defaultConfigFile mConfigFile

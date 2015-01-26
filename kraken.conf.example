@@ -1,10 +1,10 @@
 
-# delay for retrying failing targets (in seconds)
-retryDelay = 300
+# retryDelay = delay for retrying failing targets (in seconds)
+# numberOfRetries = number of times something is retried (default 1)
+retryDelay: 300
 
-# number of times something is retried (default 1)
-numberOfRetries = 3
+numberOfRetries: 3
 
-customConfig {
-  foo = 42
+customConfig: {
+  foo: 42
 }

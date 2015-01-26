@@ -8,10 +8,8 @@ import           Control.Exception
 import           Control.Monad                (when)
 import           Data.Aeson
 import           Data.ByteString              (ByteString, hGetContents)
-import           Data.Graph.Wrapper
 import           Data.Maybe
 import           Data.String.Conversions
-import           Data.Traversable             (forM)
 import           Network.HTTP.Client          as Client
 import           Network.HTTP.Types
 import           Network.URI

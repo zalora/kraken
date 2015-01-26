@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, ViewPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module KrakenSpec (main, spec) where
@@ -8,24 +9,24 @@ import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Configurator
-import           Data.Configurator.Types
+import           Data.Aeson (Object, FromJSON, ToJSON)
 import           Data.Graph.Wrapper
 import           Data.List
+import           GHC.Generics
 import           System.Environment
 import           System.Exit
 import           System.IO
 import           System.IO.Silently
 import           System.IO.Temp
-import           Test.Hspec
 import           Test.HUnit
+import           Test.Hspec
 import           Test.QuickCheck
 
 import qualified System.Logging.Facade as Log
 
-import           Kraken                  hiding (catch, runAsMain)
+import           Kraken hiding (catch, runAsMain)
 import qualified Kraken
-import           Kraken.ActionMSpec      (mockStateful)
+import           Kraken.ActionMSpec (mockStateful)
 
 
 main :: IO ()
@@ -38,6 +39,11 @@ runWithExitCode :: Store -> IO ExitCode
 runWithExitCode store = catch
   (Kraken.runAsMain "test program" store >> return ExitSuccess)
   (\ (e :: ExitCode) -> return e)
+
+newtype ExampleConfig = ExampleConfig { foo :: Int } deriving Generic
+
+instance ToJSON ExampleConfig
+instance FromJSON ExampleConfig
 
 spec :: Spec
 spec = do
@@ -66,12 +72,12 @@ spec = do
           readFile "kraken.conf.example" >>= writeFile file
           withArgs ["check"] $
             runAsMainWithCustomConfig "test program" file $
-              \ (_ :: (FilePath, Config)) -> return (createStore [])
+              \ (_ :: (FilePath, Object)) -> return (createStore [])
 
       it "reads the custom configuration section of the example file successfully" $ do
         withArgs (words "check --config kraken.conf.example") $
           runAsMainWithCustomConfig "test program" "kraken.conf.example" $ \ (_, config) -> do
-            require config "foo" `shouldReturn` (42 :: Integer)
+            foo config `shouldBe` 42
             return $ createStore []
 
     describe "check command" $ do
