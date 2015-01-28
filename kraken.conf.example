@@ -1,8 +1,8 @@
 
 # retryDelay = delay for retrying failing targets (in seconds)
-# numberOfRetries = number of times something is retried (default 1)
 retryDelay: 300
 
+# numberOfRetries = number of times something is retried (default 1)
 numberOfRetries: 3
 
 customConfig: {
