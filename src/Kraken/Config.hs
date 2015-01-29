@@ -1,16 +1,13 @@
 {-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 
 module Kraken.Config where
 
 
 import           Control.Applicative ((<$>))
-import qualified Data.Aeson as A
+import           Control.Exception (throwIO, ErrorCall(..))
 import qualified Data.ByteString as BS
-import qualified Data.HashMap.Strict as HM
 import           Data.Maybe
-import           Data.Text (Text, unpack)
 import           Data.Yaml
 import           Prelude hiding (lookup)
 
@@ -26,31 +23,23 @@ defaultKrakenConfig = KrakenConfig {
   numberOfRetries = 1
  }
 
-load :: FilePath -> IO Object
-load p = BS.readFile p >>= return . decodeEither >>= \case
-  Right o -> return o
-  Left m -> error $ "Kraken.Config.load: decode failure ‘" ++ m ++ "’"
+newtype ConfigPair a = ConfigPair { _unConfigPair :: (KrakenConfig, a) }
+                     deriving (Eq, Show)
 
-data LookupError = KeyError String | DecodeError String deriving (Show, Eq)
+instance FromJSON a => FromJSON (ConfigPair a) where
+  parseJSON (Object v) = do
+    delay <- v .: "retryDelay"
+    retries <- v .:? "numberOfRetries" >>= return . fromMaybe 1
+    custom <- v .: "customConfig"
+    return $ ConfigPair (KrakenConfig delay retries, custom)
 
--- | Like 'lookupEither' but 'error's out if decoding or lookup fails.
-lookup :: FromJSON a => Text -> Object -> a
-lookup k o = case lookupEither k o of
-  Right v -> v
-  Left (DecodeError s) ->
-    error $ "Kraken.Config.lookup: decode error ‘" ++ s ++ "’"
-  Left (KeyError k') ->
-    error $ "Kraken.Config.lookup: key ‘" ++ k' ++ "’ not found"
+  parseJSON _ = fail "FromJSON.parseJSON failure for ConfigPair"
 
--- | Turn the 'Value' at given key of given object into something
--- nicer to use using its 'FromJSON' instance. 'error's out if
--- conversion fails.
-lookupEither :: forall a. FromJSON a => Text -> Object -> Either LookupError a
-lookupEither k o = case HM.lookup k o of
-  Just x -> case A.fromJSON x :: A.Result a of
-    A.Success v -> Right v
-    A.Error s -> Left $ DecodeError s
-  _ -> Left . KeyError $ unpack k
+withConfig :: FromJSON a => FilePath -> (a -> IO b) -> IO b
+withConfig p f = BS.readFile p >>= return . decodeEither >>= \case
+  Right config -> f config
+  Left m -> throwIO . ErrorCall $
+            "Kraken.Config.withConfig: decode failure ‘" ++ m ++ "’"
 
 -- | Reads 'KrakenConfig' from file at given path as well as an extra
 -- @customConfig@ object which is converted using the 'FromJSON'
@@ -58,17 +47,7 @@ lookupEither k o = case HM.lookup k o of
 --
 -- Also see 'loadKrakenConfig'
 loadConfig :: FromJSON a => FilePath -> IO (KrakenConfig, a)
-loadConfig configFile = do
-  config <- load configFile
-  let retries = case lookupEither "numberOfRetries" config of
-        Left _ -> 1
-        Right x -> x
-
-      result = KrakenConfig (lookup "retryDelay" config) retries
-
-  seq (length $ show result) (return ())
-  return (result, lookup "customConfig" config)
-
+loadConfig configFile = withConfig configFile $ return  . _unConfigPair
 
 -- | As 'loadConfig' but ignores the possible extra object.
 loadKrakenConfig :: FilePath -> IO KrakenConfig

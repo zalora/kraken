@@ -35,7 +35,6 @@ library
     , string-conversions
     , text
     , transformers
-    , unordered-containers
     , wai
     , wai-extra
     , warp
@@ -87,7 +86,6 @@ executable kraken-web
     , safe
     , string-conversions
     , transformers
-    , unordered-containers
     , wai
     , wai-extra
     , warp
@@ -139,7 +137,6 @@ test-suite krakenspec
     , string-conversions
     , temporary
     , transformers
-    , unordered-containers
     , wai-extra
     , warp
     , logging-facade
