@@ -4,7 +4,7 @@
 module Kraken.Config where
 
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative
 import           Control.Exception (throwIO, ErrorCall(..))
 import qualified Data.ByteString as BS
 import           Data.Maybe
@@ -60,5 +60,5 @@ loadKrakenConfig fp = fst <$> loadConf
     -- value. Object is the most general thing we can expect and at
     -- worst case scenario we are forcing too much rather than
     -- crashing.
-    loadConf :: IO (KrakenConfig, Object)
+    loadConf :: IO (KrakenConfig, Value)
     loadConf = loadConfig fp
