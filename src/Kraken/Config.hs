@@ -33,9 +33,9 @@ data CustomConfig a = CustomConfig {
 
 instance FromJSON a => FromJSON (CustomConfig a)
 
-withConfig :: FromJSON a => FilePath -> (a -> IO b) -> IO b
-withConfig p f = BS.readFile p >>= return . decodeEither >>= \case
-  Right config -> f config
+loadYAML :: FromJSON a => FilePath -> IO a
+loadYAML file = BS.readFile file >>= return . decodeEither >>= \case
+  Right config -> return config
   Left m -> throwIO . ErrorCall $
             "Kraken.Config.withConfig: decode failure ‘" ++ m ++ "’"
 
@@ -45,10 +45,10 @@ withConfig p f = BS.readFile p >>= return . decodeEither >>= \case
 --
 -- Also see 'loadKrakenConfig'
 loadConfig :: FromJSON a => FilePath -> IO (KrakenConfig, a)
-loadConfig configFile =
-  withConfig configFile $ \ krakenConfig ->
-  withConfig configFile $ \ (CustomConfig customConfig) ->
-    return (krakenConfig, customConfig)
+loadConfig configFile = do
+  krakenConfig <- loadYAML configFile
+  CustomConfig customConfig <- loadYAML configFile
+  return (krakenConfig, customConfig)
 
 -- | As 'loadConfig' but ignores the possible extra object.
 loadKrakenConfig :: FilePath -> IO KrakenConfig
