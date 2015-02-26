@@ -1,21 +1,22 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase #-}
+{-# LANGUAGE DeriveGeneric, LambdaCase, OverloadedStrings, TupleSections #-}
 
 
 module Kraken.Config where
 
 
 import           Control.Applicative
-import           Control.Exception (throwIO, ErrorCall(..))
-import qualified Data.ByteString as BS
+import           Control.Exception   (ErrorCall (..), throwIO)
+import qualified Data.ByteString     as BS
 import           Data.Maybe
 import           Data.Yaml
-import           Prelude hiding (lookup)
+import           GHC.Generics
+import           Prelude             hiding (lookup)
 
 data KrakenConfig = KrakenConfig {
   retryDelay :: Maybe Double,
   numberOfRetries :: Int
  }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
 
 defaultKrakenConfig :: KrakenConfig
 defaultKrakenConfig = KrakenConfig {
@@ -23,17 +24,14 @@ defaultKrakenConfig = KrakenConfig {
   numberOfRetries = 1
  }
 
-newtype ConfigPair a = ConfigPair { _unConfigPair :: (KrakenConfig, a) }
-                     deriving (Eq, Show)
+instance FromJSON KrakenConfig
 
-instance FromJSON a => FromJSON (ConfigPair a) where
-  parseJSON (Object v) = do
-    delay <- v .: "retryDelay"
-    retries <- v .:? "numberOfRetries" >>= return . fromMaybe 1
-    custom <- v .: "customConfig"
-    return $ ConfigPair (KrakenConfig delay retries, custom)
+data CustomConfig a = CustomConfig {
+  customConfig :: a
+ }
+  deriving (Show, Eq, Ord, Generic)
 
-  parseJSON _ = fail "FromJSON.parseJSON failure for ConfigPair"
+instance FromJSON a => FromJSON (CustomConfig a)
 
 withConfig :: FromJSON a => FilePath -> (a -> IO b) -> IO b
 withConfig p f = BS.readFile p >>= return . decodeEither >>= \case
@@ -47,7 +45,10 @@ withConfig p f = BS.readFile p >>= return . decodeEither >>= \case
 --
 -- Also see 'loadKrakenConfig'
 loadConfig :: FromJSON a => FilePath -> IO (KrakenConfig, a)
-loadConfig configFile = withConfig configFile $ return  . _unConfigPair
+loadConfig configFile =
+  withConfig configFile $ \ krakenConfig ->
+  withConfig configFile $ \ (CustomConfig customConfig) ->
+    return (krakenConfig, customConfig)
 
 -- | As 'loadConfig' but ignores the possible extra object.
 loadKrakenConfig :: FilePath -> IO KrakenConfig
