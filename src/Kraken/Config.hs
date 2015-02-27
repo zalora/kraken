@@ -37,7 +37,7 @@ loadYAML :: FromJSON a => FilePath -> IO a
 loadYAML file = BS.readFile file >>= return . decodeEither >>= \case
   Right config -> return config
   Left m -> throwIO . ErrorCall $
-            "Kraken.Config.withConfig: decode failure ‘" ++ m ++ "’"
+            "Kraken.Config.loadYAML: decode failure ‘" ++ m ++ "’"
 
 -- | Reads 'KrakenConfig' from file at given path as well as an extra
 -- @customConfig@ object which is converted using the 'FromJSON'
