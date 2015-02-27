@@ -26,6 +26,12 @@ defaultKrakenConfig = KrakenConfig {
 newtype ConfigPair a = ConfigPair { _unConfigPair :: (KrakenConfig, a) }
                      deriving (Eq, Show)
 
+-- | The reason for this instance instead of using 'Generic' for
+-- KrakenConfig is the type of 'numberOfRetries' field: the 'Generic'
+-- instance will always expectan 'Int' and fail to parses if the field
+-- is missing. This field is actually optional but defaults to 1 which
+-- means we need a custom parser for the field and therefore a custom
+-- instance.
 instance FromJSON a => FromJSON (ConfigPair a) where
   parseJSON (Object v) = do
     delay <- v .: "retryDelay"
