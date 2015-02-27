@@ -1,22 +1,21 @@
-{-# LANGUAGE DeriveGeneric, LambdaCase, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase #-}
 
 
 module Kraken.Config where
 
 
 import           Control.Applicative
-import           Control.Exception   (ErrorCall (..), throwIO)
-import qualified Data.ByteString     as BS
+import           Control.Exception (throwIO, ErrorCall(..))
+import qualified Data.ByteString as BS
 import           Data.Maybe
 import           Data.Yaml
-import           GHC.Generics
-import           Prelude             hiding (lookup)
+import           Prelude hiding (lookup)
 
 data KrakenConfig = KrakenConfig {
   retryDelay :: Maybe Double,
   numberOfRetries :: Int
  }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord)
 
 defaultKrakenConfig :: KrakenConfig
 defaultKrakenConfig = KrakenConfig {
@@ -24,14 +23,17 @@ defaultKrakenConfig = KrakenConfig {
   numberOfRetries = 1
  }
 
-instance FromJSON KrakenConfig
+newtype ConfigPair a = ConfigPair { _unConfigPair :: (KrakenConfig, a) }
+                     deriving (Eq, Show)
 
-data CustomConfig a = CustomConfig {
-  customConfig :: a
- }
-  deriving (Show, Eq, Ord, Generic)
+instance FromJSON a => FromJSON (ConfigPair a) where
+  parseJSON (Object v) = do
+    delay <- v .: "retryDelay"
+    retries <- v .:? "numberOfRetries" >>= return . fromMaybe 1
+    custom <- v .: "customConfig"
+    return $ ConfigPair (KrakenConfig delay retries, custom)
 
-instance FromJSON a => FromJSON (CustomConfig a)
+  parseJSON _ = fail "FromJSON.parseJSON failure for ConfigPair"
 
 loadYAML :: FromJSON a => FilePath -> IO a
 loadYAML file = BS.readFile file >>= return . decodeEither >>= \case
@@ -45,10 +47,7 @@ loadYAML file = BS.readFile file >>= return . decodeEither >>= \case
 --
 -- Also see 'loadKrakenConfig'
 loadConfig :: FromJSON a => FilePath -> IO (KrakenConfig, a)
-loadConfig configFile = do
-  krakenConfig <- loadYAML configFile
-  CustomConfig customConfig <- loadYAML configFile
-  return (krakenConfig, customConfig)
+loadConfig configFile = loadYAML configFile >>= return . _unConfigPair
 
 -- | As 'loadConfig' but ignores the possible extra object.
 loadKrakenConfig :: FilePath -> IO KrakenConfig
