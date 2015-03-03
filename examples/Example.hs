@@ -24,32 +24,29 @@ main = runAsMain "kraken example" $ createStore targets
 -- | List of all the Targets that are being put in the store.
 targets :: [Target]
 targets =
-  foo ++
-  oof ++
-  failingTarget ++
+  foo :
+  oof :
+  failingTarget :
   []
 
 -- | Creates the file foo with some contents in it.
-foo :: [Target]
+foo :: Target
 foo =
-  Target "foo" [] (liftIO $ writeFile "foo" "hello") (Just $ fileMonitor "foo") :
-  []
+  Target "foo" [] (liftIO $ writeFile "foo" "hello") (Just $ fileMonitor "foo")
 
 -- | Creates the file oof that contains the contents of foo reversed.
 -- It depends on Target foo.
-oof :: [Target]
+oof :: Target
 oof =
   Target "oof" ["foo"]
     -- File 'foo' should exist, because Target 'oof' depends on Target 'foo'.
-    (liftIO (readFile "foo" >>= writeFile "oof" . reverse)) (Just $ fileMonitor "oof") :
-  []
+    (liftIO (readFile "foo" >>= writeFile "oof" . reverse)) (Just $ fileMonitor "oof")
 
 -- | This is a Target that fails to create the file it's meant to create.
 -- This will be caught by the supplied monitor when trying to execute the Target.
-failingTarget :: [Target]
+failingTarget :: Target
 failingTarget =
-  Target "failingTarget" [] (return ()) (Just $ fileMonitor "does_not_exist") :
-  []
+  Target "failingTarget" [] (return ()) (Just $ fileMonitor "does_not_exist")
 
 -- | Checks whether the given file exists.
 fileMonitor :: FilePath -> Monitor
