@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.Wai.Handler.Warp.Run (
   Port,
@@ -18,6 +19,7 @@ runWarp :: Port -> Application -> IO ()
 runWarp port application = do
   let settings =
         setPort port $
+        setHost "127.0.0.1" $
         setBeforeMainLoop (do
           let message = "listening on port " ++ show port
           Log.info message
