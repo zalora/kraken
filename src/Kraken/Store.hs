@@ -1,4 +1,5 @@
-{-# LANGUAGE QuasiQuotes, ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Kraken.Store where
 
 
@@ -6,6 +7,7 @@ import           Data.Foldable           as Foldable (toList)
 import           Data.Graph.Wrapper      as Graph
 import           Data.List               as List (foldl', group, isPrefixOf,
                                                   nub, sort)
+import qualified Data.Map                as Map
 import           Data.Maybe
 import           Data.Set                as Set (Set, fromList, isSubsetOf,
                                                  member, union, (\\))
@@ -23,12 +25,26 @@ data Store = Store {
     graph :: Graph TargetName Node
   }
 
--- | smart constructor for Store
 createStore :: [Target] -> Store
-createStore targets =
-    case checkStore targets of
+createStore targets = createStoreWithPriorities [] targets
+
+-- | smart constructor for Store
+createStoreWithPriorities :: [TargetName] -> [Target] -> Store
+createStoreWithPriorities priorities targets =
+    case checkStore (addPriorities priorities targets) of
         Right store -> store
         Left err -> error err
+
+addPriorities :: [TargetName] -> [Target] -> [Target]
+addPriorities priorities =
+    map $ \ target -> case Map.lookup (name target) priorityMap of
+      Nothing -> target
+      Just prioOutgoing -> target{dependencies = prioOutgoing : dependencies target}
+  where
+    priorityMap :: Map.Map TargetName TargetName
+    priorityMap = case priorities of
+      [] -> Map.empty
+      all@(_ : r) -> Map.fromList $ zip r all
 
 checkStore :: [Target] -> Either String Store
 checkStore targets = do

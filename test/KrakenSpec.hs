@@ -297,6 +297,27 @@ spec = do
           result <- lines <$> run
           result `shouldSatisfy` (\r -> not $ any (`elem` r) ["executing A", "executing D"])
 
+      context "using addPriorities" $ do
+        let store mvar priorities = createStoreWithPriorities priorities $
+              Target "a" [] (append mvar "a") Nothing :
+              Target "b" ["a"] (append mvar "b") Nothing :
+              Target "c" ["a"] (append mvar "c") Nothing :
+              Target "d" ["b", "c"] (append mvar "d") Nothing :
+              []
+            run :: [TargetName] -> IO [String]
+            run priorities = do
+              mvar <- newMVar []
+              withArgs (words "run d") $ runAsMain $
+                (store mvar priorities)
+              readMVar mvar
+        it "honors supplied priorities" $ do
+          run ["b", "c"] `shouldReturn` words "a b c d"
+          run ["c", "b"] `shouldReturn` words "a c b d"
+          run ["a", "b", "c"] `shouldReturn` words "a b c d"
+
+        it "reports cycles in case of impossible priorities" $ do
+          run ["b", "a"] `shouldThrow` (\ (ErrorCall message) -> "cycles" `isInfixOf` message)
+
     describe "list command" $ do
       it "lists available targets" $ do
         withArgs ["list"] $ do
