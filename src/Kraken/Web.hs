@@ -73,7 +73,7 @@ getValue manager uri = do
     decode' (Client.responseBody innerResponse)
 
 toDot :: Maybe [String] -> TargetGraph -> String
-toDot prefixes (TargetGraph g) = Kraken.Dot.toDot False prefixes True (fmap Kraken.Dot.fromWebNode g)
+toDot prefixes (TargetGraph g) = Kraken.Dot.toDot False prefixes True (fmap (uncurry Kraken.Dot.fromWebNode) g)
 
 
 -- * utils

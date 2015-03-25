@@ -27,24 +27,25 @@ import qualified Kraken.Web.TargetGraph  as Web
 
 
 data DotNode = DotNode {
+  executionOrder :: Integer,
   monitor :: Maybe TargetName
  }
 
 
 -- * conversions from other types
 
-fromNode :: Kraken.Graph.Node -> DotNode
-fromNode (Kraken.Graph.Node _action monitor) =
-  DotNode (fmap Kraken.Graph.nodeMonitorName monitor)
+fromNode :: Integer -> Kraken.Graph.Node -> DotNode
+fromNode executionOrder (Kraken.Graph.Node _action monitor) =
+  DotNode executionOrder (fmap Kraken.Graph.nodeMonitorName monitor)
 
-fromWebNode :: Web.WebNode -> DotNode
-fromWebNode (Web.WebNode monitor) =
-  DotNode monitor
+fromWebNode :: Integer -> Web.WebNode -> DotNode
+fromWebNode executionOrder (Web.WebNode monitor) =
+  DotNode executionOrder monitor
 
 
 -- * conversion to dot
 
-toDot :: Bool -> Maybe [String] -> Bool -> (Graph TargetName DotNode) -> String
+toDot :: Bool -> Maybe [String] -> Bool -> Graph TargetName DotNode -> String
 toDot withMonitors prefixes transitiveReductionFlag graph = unlines $
     "digraph targets {" :
     "    rankdir = RL;" :
@@ -63,9 +64,9 @@ filterByPrefix (Just (mapPrefixes -> prefixes)) =
     -- filter out nodes
     List.filter (hasPrefix . fst3) >>>
     -- filter out deps by prefix (including monitors)
-    fmap (\ (name, DotNode monitor, deps) ->
+    fmap (\ (name, DotNode order monitor, deps) ->
       (dropPrefix name,
-       DotNode (maybe Nothing dropPrefixesFromMonitor monitor),
+       DotNode order (maybe Nothing dropPrefixesFromMonitor monitor),
        (fmap dropPrefix $ List.filter hasPrefix deps))) >>>
     Graph.fromList
 
@@ -110,7 +111,7 @@ targetsToEdges withMonitors graph =
 
 targetEdges :: Bool -> Graph TargetName DotNode -> (TargetName, DotNode) -> [String]
 targetEdges withMonitors graph (name, node) =
-    [i|"#{name}" [shape = #{nodeShape}];|] :
+    [i|"#{name}" [shape = #{nodeShape}, label = "#{executionOrder node}. #{name}"];|] :
     (fmap (mkEdge "black" name) dependencies) ++
     if withMonitors then
         maybe [] (\ monitorName ->

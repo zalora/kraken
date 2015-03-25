@@ -22,7 +22,7 @@ main :: IO ()
 main = hspec spec
 
 toGraph' :: [Target] -> Graph TargetName DotNode
-toGraph' = fmap Kraken.Dot.fromNode . either error id . toGraph
+toGraph' = undefined -- fmap Kraken.Dot.fromNode . either error id . toGraph
 
 spec :: Spec
 spec = do
@@ -45,23 +45,35 @@ spec = do
           all (\ p -> p == "" || last p == '.')
               (fmap snd $ mapPrefixes prefixes)
 
-  describe "runAsMain" $ do
+  describe "runAsMain used with dot" $ do
     it "allows to use the global --config option" $ do
       withArgs (words "dot --config kraken.conf.example") $
         runAsMain "test program" (createStore [])
 
+    let targets =
+          Target "a" [] (return ()) Nothing :
+          Target "b" ["a"] (return ()) Nothing :
+          Target "c" ["a"] (return ()) Nothing :
+          Target "d" ["b", "c"] (return ()) Nothing :
+          []
+        priorities = ["c", "b"]
+        store = createStoreWithPriorities priorities targets
+
     it "doesn't show priority dependencies in the graph" $ do
-      let targets =
-            Target "a" [] (return ()) Nothing :
-            Target "b" ["a"] (return ()) Nothing :
-            Target "c" ["a"] (return ()) Nothing :
-            Target "d" ["b", "c"] (return ()) Nothing :
-            []
-          priorities = ["b", "c"]
-          store = createStoreWithPriorities priorities targets
-      output <- capture_ $ withArgs (words "dot") $
+      output <- capture_ $ withArgs ["dot"] $
         runAsMain "test program" store
       output `shouldNotContain` "\"c\" -> \"b\""
+      output `shouldNotContain` "\"b\" -> \"c\""
+
+    it "does include ordering numbers" $ do
+      output <- capture_ $ withArgs ["dot"] $
+        runAsMain "test program" store
+      mapM_ (output `shouldContain`) $
+        "1. a" :
+        "2. c" :
+        "3. b" :
+        "4. d" :
+        []
 
 unique :: (Show a, Eq a) => [a] -> Property
 unique list = case filter (\ e -> length (filter (== e) list) > 1) list of

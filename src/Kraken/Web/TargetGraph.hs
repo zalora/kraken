@@ -29,7 +29,7 @@ instance FromJSON TargetName
 instance ToJSON TargetName
 
 
-newtype TargetGraph = TargetGraph (Graph TargetName WebNode)
+newtype TargetGraph = TargetGraph (Graph TargetName (Integer, WebNode))
   deriving (Generic)
 
 instance FromJSON TargetGraph where
@@ -38,5 +38,5 @@ instance FromJSON TargetGraph where
 instance ToJSON TargetGraph where
   toJSON (TargetGraph g) = toJSON $ toList g
 
-toTargetGraph :: Graph TargetName Node -> TargetGraph
-toTargetGraph = TargetGraph . fmap toWebNode
+toTargetGraph :: Graph TargetName (Integer, Node) -> TargetGraph
+toTargetGraph = undefined -- TargetGraph . fmap toWebNode

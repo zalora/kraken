@@ -11,7 +11,7 @@ import           Network.Wai.Handler.Warp.Run
 import           Network.Wai.UrlMap
 
 import           Kraken.Store
-import           Kraken.Web.TargetGraph
+-- import           Kraken.Web.TargetGraph
 
 
 runDaemon :: Port -> Store -> IO ()
@@ -30,5 +30,6 @@ jsonApplication app request respond =
   app request (respond . responseLBS ok200 [("Content-Type", "application/json")] . encode)
 
 targetGraph :: Store -> JsonApplication
-targetGraph store _ respond = do
-  respond (toJSON (toTargetGraph $ graphWithoutPriorities store))
+targetGraph _store _ _respond = do
+  undefined
+--  respond (toJSON (toTargetGraph $ graphWithoutPriorities store))

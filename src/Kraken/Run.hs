@@ -1,4 +1,6 @@
-{-# LANGUAGE QuasiQuotes, ScopedTypeVariables, TupleSections #-}
+{-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Kraken.Run (
   runAsMain,
@@ -14,14 +16,16 @@ module Kraken.Run (
 import           Control.Concurrent
 import           Control.Monad            (when)
 import           Control.Monad.IO.Class
+import           Data.Aeson.Types         (FromJSON)
 import           Data.Foldable            (forM_)
-import           Data.Graph.Wrapper       as Graph hiding (toList)
-import           Data.List                as List (null, (\\), intercalate)
+import           Data.Graph.Wrapper       as Graph
+import           Data.List                as List (intercalate, null, (\\))
+import qualified Data.Map                 as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                 as Set (empty, insert, member)
 import           Data.String.Interpolate
-import           Data.Aeson.Types (FromJSON)
+import           Data.Traversable
 import           Network.Wai.Handler.Warp hiding (cancel)
 import           Options.Applicative      hiding (action)
 import           Prelude                  hiding (mapM)
@@ -29,7 +33,7 @@ import           Safe
 import           System.Exit
 import           Text.Printf
 
-import qualified System.Logging.Facade as Log
+import qualified System.Logging.Facade    as Log
 
 import           Kraken.ActionM
 import           Kraken.Config
@@ -75,12 +79,17 @@ runStore opts krakenConfig store = case opts of
         fmap show $
         reverse $ topologicalSort $
         graphWithPriorities store
-    Dot withMonitors prefixes transitiveReduction ->
+    Dot withMonitors prefixes transitiveReduction -> do
+        graphE <- runActionM $ do
+            targets <- lookupTargets store False AllTargets
+            plan <- map fst <$> lookupExecutionPlan store True targets
+            addExecutionOrdering plan (graphWithoutPriorities store)
+        graph <- either reportAndExit return graphE
         putStr $ toDot withMonitors prefixes transitiveReduction $
-          fmap Kraken.Dot.fromNode $ graphWithoutPriorities store
+            fmap (uncurry Kraken.Dot.fromNode) graph
     Daemon port -> runDaemon port store
   where
-    reportAndExit :: [Error] -> IO ()
+    reportAndExit :: [Error] -> IO a
     reportAndExit messages = do
         Log.info . unlines $
             "" :
@@ -88,6 +97,15 @@ runStore opts krakenConfig store = case opts of
             "-------" :
             map showError messages
         exitWith (ExitFailure 70)
+
+addExecutionOrdering :: [TargetName] -> Graph TargetName a -> ActionM () (Graph TargetName (Integer, a))
+addExecutionOrdering executionPlan graph = do
+  let m = Map.fromList $ zip executionPlan [1..]
+      addOrdering :: (TargetName, a, [TargetName]) -> ActionM () (TargetName, (Integer, a), [TargetName])
+      addOrdering (name, node, outgoing) = case Map.lookup name m of
+        Nothing -> cancel ("addExecutionOrdering: target not found in execution plan: " ++ show name)
+        Just order -> return (name, (order, node), outgoing)
+  Graph.fromList <$> mapM addOrdering (Graph.toList graph)
 
 
 -- * running
