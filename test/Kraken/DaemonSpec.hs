@@ -51,7 +51,7 @@ spec = do
   describe "daemon command" $ do
     it "returns the graph as a dot file" $
       withManager defaultManagerSettings $ \ manager -> do
-        threadId <- forkIO $
+        thread <- fork $
           withArgs ["daemon", "--port", show port] $
           Kraken.runAsMain "test program" store
         threadDelay 100000
@@ -60,24 +60,24 @@ spec = do
         response :: String <- cs <$> responseBody <$> httpLbs url manager
         response `shouldContain` "foo"
         response `shouldContain` "bar"
-        killThread threadId
+        kill thread
 
     it "prints the port to stderr when started" $ do
       output <- hCapture_ [stderr] $ do
-        threadId <- forkIO $
+        thread <- fork $
           withArgs ["daemon", "--port", show port] $
           Kraken.runAsMain "test program" store
         threadDelay 100000
-        killThread threadId
+        kill thread
       output `shouldContain` show port
 
     it "allows to use the global --config option" $ do
       output <- hCapture_ [stderr] $ do
-        threadId <- forkIO $
+        thread <- fork $
           withArgs ["daemon", "--config", "kraken.conf.example", "--port", show port] $
           Kraken.runAsMain "test program" store
         threadDelay 100000
-        killThread threadId
+        kill thread
       output `shouldContain` show port
 
   describe "daemon application" $ appSpec
@@ -93,3 +93,16 @@ isValidJson response =
   simpleStatus response == ok200 &&
   ("Content-Type", "application/json") `elem` simpleHeaders response &&
   isJust (decode' (simpleBody response) :: Maybe Value)
+
+-- * thread helpers
+
+fork :: IO () -> IO (MVar (), ThreadId)
+fork action = do
+  mvar <- newMVar ()
+  thread <- forkIO $ modifyMVar_ mvar $ \ () -> action
+  return (mvar, thread)
+
+kill :: (MVar (), ThreadId) -> IO ()
+kill (mvar, thread) = do
+  killThread thread
+  modifyMVar_ mvar $ \ () -> return ()
