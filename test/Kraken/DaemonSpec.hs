@@ -51,33 +51,33 @@ spec = do
   describe "daemon command" $ do
     it "returns the graph as a dot file" $
       withManager defaultManagerSettings $ \ manager -> do
-        thread <- fork $
-          withArgs ["daemon", "--port", show port] $
-          Kraken.runAsMain "test program" store
-        threadDelay 100000
+        let thread =
+              withArgs ["daemon", "--port", show port] $
+              Kraken.runAsMain "test program" store
+        withForkedThread thread $ do
+          threadDelay 100000
 
-        url <- parseUrl ("http://localhost:" ++ show port ++ "/targetGraph")
-        response :: String <- cs <$> responseBody <$> httpLbs url manager
-        response `shouldContain` "foo"
-        response `shouldContain` "bar"
-        kill thread
+          url <- parseUrl ("http://localhost:" ++ show port ++ "/targetGraph")
+          response :: String <- cs <$> responseBody <$> httpLbs url manager
+          response `shouldContain` "foo"
+          response `shouldContain` "bar"
 
     it "prints the port to stderr when started" $ do
       output <- hCapture_ [stderr] $ do
-        thread <- fork $
-          withArgs ["daemon", "--port", show port] $
-          Kraken.runAsMain "test program" store
-        threadDelay 100000
-        kill thread
+        let thread =
+              withArgs ["daemon", "--port", show port] $
+              Kraken.runAsMain "test program" store
+        withForkedThread thread $
+          threadDelay 100000
       output `shouldContain` show port
 
     it "allows to use the global --config option" $ do
       output <- hCapture_ [stderr] $ do
-        thread <- fork $
-          withArgs ["daemon", "--config", "kraken.conf.example", "--port", show port] $
-          Kraken.runAsMain "test program" store
-        threadDelay 100000
-        kill thread
+        let thread =
+              withArgs ["daemon", "--config", "kraken.conf.example", "--port", show port] $
+              Kraken.runAsMain "test program" store
+        withForkedThread thread $
+          threadDelay 100000
       output `shouldContain` show port
 
   describe "daemon application" $ appSpec
@@ -106,3 +106,8 @@ kill :: (MVar (), ThreadId) -> IO ()
 kill (mvar, thread) = do
   killThread thread
   modifyMVar_ mvar $ \ () -> return ()
+
+withForkedThread :: IO () -> IO () -> IO ()
+withForkedThread forked action = do
+  thread <- fork forked
+  action `finally` kill thread
