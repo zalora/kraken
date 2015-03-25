@@ -31,4 +31,4 @@ jsonApplication app request respond =
 
 targetGraph :: Store -> JsonApplication
 targetGraph store _ respond = do
-  respond (toJSON (toTargetGraph $ graph store))
+  respond (toJSON (toTargetGraph $ graphWithoutPriorities store))

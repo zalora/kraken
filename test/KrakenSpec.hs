@@ -54,7 +54,7 @@ spec = do
             Target "t1" [] (return ()) Nothing :
             Target "t2" ["t1", "t1"] (return ()) Nothing :
             []
-      edges (graph store) `shouldBe` [("t2", "t1")]
+      edges (graphWithPriorities store) `shouldBe` [("t2", "t1")]
 
   describe "runAsMain" $ do
     describe "global --config file command line option" $ do

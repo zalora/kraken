@@ -22,7 +22,7 @@ import           Kraken.Graph
 data Store = Store {
     -- the graph does not only store the direct given dependencies
     -- but also the dependencies from the given monitor for each target.
-    graph :: Graph TargetName Node,
+    graphWithPriorities :: Graph TargetName Node,
     graphWithoutPriorities :: Graph TargetName Node
   }
 
@@ -92,11 +92,11 @@ data TargetList
   deriving (Show)
 
 lookupTargets :: Store -> Bool -> TargetList -> TargetM [TargetName]
-lookupTargets store _ AllTargets = return $ vertices $ graph store
+lookupTargets store _ AllTargets = return $ vertices $ graphWithPriorities store
 lookupTargets store useAsPrefix (SelectedTargets names) =
     concat <$>
     (forM names $ \ needle ->
-     case filter (pred needle) (vertices $ graph store) of
+     case filter (pred needle) (vertices $ graphWithPriorities store) of
         [target] -> return [target]
         [] -> cancel [i|target not found: #{needle}|]
         targets -> if useAsPrefix
@@ -111,7 +111,7 @@ lookupTargets store useAsPrefix (SelectedTargets names) =
 
 lookupTarget :: Store -> TargetName -> TargetM (TargetName, Node)
 lookupTarget store targetName =
-    case filter (\ (n, _, _) -> n == targetName) (Graph.toList $ graph store) of
+    case filter (\ (n, _, _) -> n == targetName) (Graph.toList $ graphWithPriorities store) of
         [(name, node, _)] -> return (name, node)
         _ -> cancel [i|unable to look up target: #{targetName}|]
 
@@ -142,11 +142,11 @@ foldDependencies monoid@(_, mempty) store targets f =
       else mempty
  where
   reachable :: Set TargetName
-  reachable = Set.fromList $ concatMap (reachableVertices (graph store)) targets
+  reachable = Set.fromList $ concatMap (reachableVertices (graphWithPriorities store)) targets
 
 foldTopologically :: forall a . (a -> a -> a, a) -> Store -> ((TargetName, Node) -> a) -> a
 foldTopologically ((<>), mempty) store f =
-    foldl' inner mempty (reverse $ topologicalSort $ graph store)
+    foldl' inner mempty (reverse $ topologicalSort $ graphWithPriorities store)
   where
     inner :: a -> TargetName -> a
-    inner acc target = acc <> f (target, (vertex (graph store) target))
+    inner acc target = acc <> f (target, (vertex (graphWithPriorities store) target))

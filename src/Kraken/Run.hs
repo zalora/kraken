@@ -74,7 +74,7 @@ runStore opts krakenConfig store = case opts of
     List -> putStr $ unlines $
         fmap show $
         reverse $ topologicalSort $
-        graph store
+        graphWithPriorities store
     Dot withMonitors prefixes transitiveReduction ->
         putStr $ toDot withMonitors prefixes transitiveReduction $
           fmap Kraken.Dot.fromNode $ graphWithoutPriorities store

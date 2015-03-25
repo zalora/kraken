@@ -14,4 +14,4 @@ module Kraken (
 import           Kraken.ActionM
 import           Kraken.Graph
 import           Kraken.Run
-import           Kraken.Store   (Store (graph), checkStore, createStore, createStoreWithPriorities)
+import           Kraken.Store   (Store (graphWithPriorities), checkStore, createStore, createStoreWithPriorities)
