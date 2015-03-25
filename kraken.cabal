@@ -123,6 +123,7 @@ test-suite krakenspec
     , directory
     , graph-wrapper
     , hspec == 2.*
+    , hspec-expectations
     , hspec-wai >= 0.6
     , http-client
     , http-types

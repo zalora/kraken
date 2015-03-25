@@ -77,7 +77,7 @@ runStore opts krakenConfig store = case opts of
         graph store
     Dot withMonitors prefixes transitiveReduction ->
         putStr $ toDot withMonitors prefixes transitiveReduction $
-          fmap Kraken.Dot.fromNode $ graph store
+          fmap Kraken.Dot.fromNode $ graphWithoutPriorities store
     Daemon port -> runDaemon port store
   where
     reportAndExit :: [Error] -> IO ()

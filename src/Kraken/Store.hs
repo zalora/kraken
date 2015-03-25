@@ -22,7 +22,8 @@ import           Kraken.Graph
 data Store = Store {
     -- the graph does not only store the direct given dependencies
     -- but also the dependencies from the given monitor for each target.
-    graph :: Graph TargetName Node
+    graph :: Graph TargetName Node,
+    graphWithoutPriorities :: Graph TargetName Node
   }
 
 createStore :: [Target] -> Store
@@ -32,7 +33,9 @@ createStore targets = createStoreWithPriorities [] targets
 createStoreWithPriorities :: [TargetName] -> [Target] -> Store
 createStoreWithPriorities priorities targets =
     case checkStore (addPriorities priorities targets) of
-        Right store -> store
+        Right withPriorities -> case checkStore targets of
+          Right withoutPriorities -> Store withPriorities withoutPriorities
+          Left err -> error err
         Left err -> error err
 
 addPriorities :: [TargetName] -> [Target] -> [Target]
@@ -46,11 +49,11 @@ addPriorities priorities =
       [] -> Map.empty
       all@(_ : r) -> Map.fromList $ zip r all
 
-checkStore :: [Target] -> Either String Store
+checkStore :: [Target] -> Either String (Graph TargetName Node)
 checkStore targets = do
     checkUniqueTargetNames
     checkDependencies
-    Store <$> toGraph targets
+    toGraph targets
   where
     checkUniqueTargetNames =
         case filter (\ g -> length g > 1) (group (sort (targetNames ++ monitorNames))) of
@@ -80,7 +83,7 @@ checkStore targets = do
         Set.fromList (concat (map monitorDependencies (catMaybes (map monitor targets))))
 
 evalStore :: Store -> IO ()
-evalStore (Store _) = return ()
+evalStore (Store _ _) = return ()
 
 
 data TargetList
