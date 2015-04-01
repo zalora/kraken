@@ -4,10 +4,12 @@ module Kraken.Run (
   runAsMain,
   runAsMainWithCustomConfig,
 
-  -- exported for testing
-  runStore,
+  parseCommandLineOptions,
   Options(..),
   RunOptions(..),
+
+  -- exported for testing
+  runStore,
  ) where
 
 
@@ -38,6 +40,8 @@ import           Kraken.Dot
 import           Kraken.Graph
 import           Kraken.Store
 
+parseCommandLineOptions :: String -> IO (Options, Maybe FilePath)
+parseCommandLineOptions description = execParser (options description)
 
 -- | Will run a process exposing a command line interface allowing
 -- to do diffirent things with the given store:
@@ -47,13 +51,13 @@ import           Kraken.Store
 -- - run as a daemon to regularly execute creation operations
 runAsMain :: String -> Store -> IO ()
 runAsMain description store = do
-    (options, _) <- execParser (options description)
+    (options, _) <- parseCommandLineOptions description
     runStore options defaultKrakenConfig store
 
 runAsMainWithCustomConfig :: FromJSON a => String -> FilePath
                           -> ((FilePath, a) -> IO Store) -> IO ()
 runAsMainWithCustomConfig description defaultConfigFile mkStore = do
-    (options, mConfigFile) <- execParser (options description)
+    (options, mConfigFile) <- parseCommandLineOptions description
     let configFile = fromMaybe defaultConfigFile mConfigFile
     (config, custom) <- loadConfig configFile
     store <- mkStore (configFile, custom)
