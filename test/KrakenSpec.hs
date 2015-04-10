@@ -184,7 +184,7 @@ spec = do
           output `shouldContain` "executing B"
 
         it "runs all targets that don't depend on failing targets, with priorities in place" $ do
-          let store = createStoreWithPriorities ["A","B","C"] . targetList
+          let store = createStoreWithPriorities ["A", "B", "C"] . targetList
           (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C") $
             runWithExitCode $ store (cancel "error from A")
           exitCode `shouldBe` ExitFailure 70

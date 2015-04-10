@@ -149,4 +149,4 @@ foldTopologically ((<>), mempty) graph f =
     foldl' inner mempty (reverse $ topologicalSort graph)
   where
     inner :: a -> TargetName -> a
-    inner acc target = acc <> f (target, (vertex graph target))
+    inner acc target = acc <> f (target, vertex graph target)
