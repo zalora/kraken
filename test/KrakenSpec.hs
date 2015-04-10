@@ -163,12 +163,28 @@ spec = do
             length (filter (== "INFO: executing C") lines) == 1)
 
       context "when one of multiple targets fails" $ do
-        let store errorAction = createStore $
+        let targetList errorAction =
               Target "A" [] errorAction Nothing :
               Target "B" [] (Log.info "executing B") Nothing :
               Target "C" ["A", "B"] (Log.info "executing C") Nothing :
               []
+            store = createStore . targetList
+
         it "runs all targets that don't depend on failing targets" $ do
+          (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C") $
+            runWithExitCode $ store (cancel "error from A")
+          exitCode `shouldBe` ExitFailure 70
+          -- ensure "A" is run first
+          output `shouldContain` unlines (
+            "execution plan:" :
+            "    A" :
+            "    B" :
+            "    C" :
+            [])
+          output `shouldContain` "executing B"
+
+        it "runs all targets that don't depend on failing targets, with priorities in place" $ do
+          let store = createStoreWithPriorities ["A","B","C"] . targetList
           (output, exitCode) <- hCapture [stderr] $ withArgs (words "run C") $
             runWithExitCode $ store (cancel "error from A")
           exitCode `shouldBe` ExitFailure 70

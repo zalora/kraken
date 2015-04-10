@@ -122,31 +122,31 @@ lookupExecutionPlan store _dontChaseDependencies@True targets =
     mapM (lookupTarget store) targets
 lookupExecutionPlan store _dontChaseDependencies@False targets = do
     mapM_ (lookupTarget store) targets
-    return $ foldDependencies ((++), []) store targets (\ (name, node) -> [(name, node)])
+    return $ foldDependencies ((++), []) (graphWithPriorities store) targets (\ (name, node) -> [(name, node)])
 
 lookupDependencies :: Store -> TargetName -> [TargetName]
 lookupDependencies store target =
     filter (/= target) $
-    foldDependencies ((++), []) store [target] (\ (name, _) -> [name])
+    foldDependencies ((++), []) (graphWithoutPriorities store) [target] (\ (name, _) -> [name])
 
 
 -- The first argument is morally a Monoid instance constraint. But for some of the
 -- contexts this is used in, there would be multiple possible Monoid instances
 -- (e.g. for TargetM). Therefore this function requires the first argument
 -- explicitly to make it a bit clearer what's going on.
-foldDependencies :: (a -> a -> a, a) -> Store -> [TargetName] -> ((TargetName, Node) -> a) -> a
-foldDependencies monoid@(_, mempty) store targets f =
-  foldTopologically monoid store $ \ (name, node) ->
+foldDependencies :: (a -> a -> a, a) -> Graph TargetName Node -> [TargetName] -> ((TargetName, Node) -> a) -> a
+foldDependencies monoid@(_, mempty) graph targets f =
+  foldTopologically monoid graph $ \ (name, node) ->
     if name `Set.member` reachable
       then f (name, node)
       else mempty
  where
   reachable :: Set TargetName
-  reachable = Set.fromList $ concatMap (reachableVertices (graphWithPriorities store)) targets
+  reachable = Set.fromList $ concatMap (reachableVertices graph) targets
 
-foldTopologically :: forall a . (a -> a -> a, a) -> Store -> ((TargetName, Node) -> a) -> a
-foldTopologically ((<>), mempty) store f =
-    foldl' inner mempty (reverse $ topologicalSort $ graphWithPriorities store)
+foldTopologically :: forall a . (a -> a -> a, a) -> Graph TargetName Node -> ((TargetName, Node) -> a) -> a
+foldTopologically ((<>), mempty) graph f =
+    foldl' inner mempty (reverse $ topologicalSort graph)
   where
     inner :: a -> TargetName -> a
-    inner acc target = acc <> f (target, (vertex (graphWithPriorities store) target))
+    inner acc target = acc <> f (target, (vertex graph target))
