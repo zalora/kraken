@@ -143,6 +143,16 @@ spec = do
           withArgs (words "run t2 -x") $ runAsMain $ store mvar
           readMVar mvar `shouldReturn` ["t2"]
 
+        it "doesn't run dependencies from priority dependencies" $ do
+          mvar :: MVar [String] <- newMVar []
+          let store mvar = createStoreWithPriorities ["t3", "t2"] $
+                Target "t1" [] (append mvar "t1") Nothing :
+                Target "t2" ["t1"] (append mvar "t2") Nothing :
+                Target "t3" ["t1"] (append mvar "t3") Nothing :
+                []
+          withArgs (words "run t2") $ runAsMain $ store mvar
+          readMVar mvar `shouldReturn` ["t1", "t2"]
+
       context "when given multiple targets with dependencies" $ do
         let store = createStore $
               Target "A" ["C"] (Log.info "executing A") Nothing :

@@ -4,9 +4,10 @@ module Kraken.Store where
 
 
 import           Data.Foldable           as Foldable (toList)
+import           Data.Function           (on)
 import           Data.Graph.Wrapper      as Graph
 import           Data.List               as List (foldl', group, isPrefixOf,
-                                                  nub, sort)
+                                                 intersectBy, nub, sort)
 import qualified Data.Map                as Map
 import           Data.Maybe
 import           Data.Set                as Set (Set, fromList, isSubsetOf,
@@ -122,7 +123,10 @@ lookupExecutionPlan store _dontChaseDependencies@True targets =
     mapM (lookupTarget store) targets
 lookupExecutionPlan store _dontChaseDependencies@False targets = do
     mapM_ (lookupTarget store) targets
-    return $ foldDependencies ((++), []) (graphWithPriorities store) targets (\ (name, node) -> [(name, node)])
+    let plan graph = foldDependencies ((++), []) graph targets (\ (name, node) -> [(name, node)])
+        with = plan (graphWithPriorities store)
+        without = plan (graphWithoutPriorities store)
+    return $ intersectBy ((==) `on` fst) with without
 
 lookupDependencies :: Store -> TargetName -> [TargetName]
 lookupDependencies store target =
